@@ -19,7 +19,9 @@ import org.mapdb.HTreeMap;
 
 import com.shn.dlp.sid.entries.Cell;
 import com.shn.dlp.sid.entries.CellLocation;
+import com.shn.dlp.sid.entries.CellLocationListSerializer;
 import com.shn.dlp.sid.entries.RawTerm;
+import com.shn.dlp.sid.entries.RawTermSerializer;
 import com.shn.dlp.sid.security.Sha256Hmac;
 import com.shn.dlp.sid.tools.TestDataFileGenerator;
 
@@ -57,7 +59,7 @@ public class CryptoFileReader {
 		dis.close();
 		db.commit();
 		// db.compact();
-		inspectDBmap(dbmap);
+		// inspectDBmap(dbmap);
 		dbmap.close();
 	}
 
@@ -86,7 +88,10 @@ public class CryptoFileReader {
 	}
 
 	private static HTreeMap<RawTerm, ArrayList<CellLocation>> createMap(DB db) {
-		HTreeMap<RawTerm, ArrayList<CellLocation>> dbmap = db.hashMapCreate(MAP_NAME).make();
+		HTreeMap<RawTerm, ArrayList<CellLocation>> dbmap = db.hashMapCreate(MAP_NAME).
+				valueSerializer(new CellLocationListSerializer()).
+				keySerializer(new RawTermSerializer()).
+				make();
 		return dbmap;
 	}
 
