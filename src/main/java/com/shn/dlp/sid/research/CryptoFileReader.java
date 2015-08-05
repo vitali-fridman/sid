@@ -102,7 +102,7 @@ public class CryptoFileReader {
 				Cell cell = Cell.read(dis, Sha256Hmac.MAC_LENGTH);
 				// System.out.println("Cell " + cell.getRow() + ":" + cell.getColumn());
 				if (i%10000 == 0) {
-					System.out.println("Cell: " + i);
+					System.out.println("Cell: " + i/1000 +"K");
 				}
 				CellLocation cellLocation = new CellLocation(cell.getRow(), cell.getColumn());
 				

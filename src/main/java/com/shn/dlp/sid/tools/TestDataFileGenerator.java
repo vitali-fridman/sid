@@ -22,6 +22,7 @@ public class TestDataFileGenerator {
 	public final static String CLEAR_SUFFIX = ".clear";
 	public final static String CRYPTO_SUFFIX = ".crypto";
 	private final static int FORMAT_VERSION = 1;
+	private final static int BUFFER_SIZE = 1024*1024*100;
 	
 	private final String fileName;
 	private final int numColumns;
@@ -46,7 +47,7 @@ public class TestDataFileGenerator {
 
 	public void generateFile() throws IOException, CryptoException {
 		this.hmac = new Sha256Hmac();
-		this.cryptoWriter = new BufferedOutputStream(new FileOutputStream(new File(this.fileName + CRYPTO_SUFFIX)));
+		this.cryptoWriter = new BufferedOutputStream(new FileOutputStream(new File(this.fileName + CRYPTO_SUFFIX)), BUFFER_SIZE);
 		if (writeClearFile) {
 			clearWriter = new BufferedWriter(new FileWriter(new File(this.fileName + CLEAR_SUFFIX)));
 		} else {
@@ -92,8 +93,8 @@ public class TestDataFileGenerator {
 			if (this.clearWriter != null) {
 				this.clearWriter.newLine();
 			}
-			if (row%1000 == 0) {
-				System.out.println("Row: " + row);
+			if (row%10000 == 0) {
+				System.out.println("Row: " + row/1000 +"K");
 			}
 		}
 		
