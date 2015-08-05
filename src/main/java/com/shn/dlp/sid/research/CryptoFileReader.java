@@ -34,6 +34,8 @@ public class CryptoFileReader {
 	private String fileName;
 	@Option(name="-d",usage="Database directory name", required=true)
 	private String dbDirectoryName;
+	@Option (name="-n",usage="Number f shards", required=true)
+	private int numShards;
 	
 	public static void main(String[] args) throws IOException {
 		
@@ -52,15 +54,22 @@ public class CryptoFileReader {
 		
 		readHeader(dis);
 		DB db = createDB(cfr.dbDirectoryName);
-		HTreeMap<RawTerm,ArrayList<CellLocation>> dbmap = createMap(db);
 		
-		readData(dis, dbmap);
-				
+		HTreeMap<RawTerm,ArrayList<CellLocation>> shards[] = createMaps(db, cfr.numShards);
+		
+		readData(dis, shards);
+		
+		for (int i=0; i<shards.length; i++) {
+			System.out.println("Shard# " + i + " Size: " + shards[i].mappingCount());
+		}
+		
 		dis.close();
 		db.commit();
 		// db.compact();
 		// inspectDBmap(dbmap);
-		dbmap.close();
+		for (HTreeMap<RawTerm,ArrayList<CellLocation>> shard : shards) {
+			shard.close();
+		}
 	}
 
 	private static DB createDB(String dbDirectoryName) throws IOException {
@@ -87,37 +96,58 @@ public class CryptoFileReader {
 		}
 	}
 
-	private static HTreeMap<RawTerm, ArrayList<CellLocation>> createMap(DB db) {
-		HTreeMap<RawTerm, ArrayList<CellLocation>> dbmap = db.hashMapCreate(MAP_NAME).
-				valueSerializer(new CellLocationListSerializer()).
-				keySerializer(new RawTermSerializer()).
-				make();
-		return dbmap;
+	private static HTreeMap<RawTerm, ArrayList<CellLocation>>[] createMaps(DB db, int numShards) {
+		HTreeMap<RawTerm, ArrayList<CellLocation>>[] shards = 
+				(HTreeMap<RawTerm, ArrayList<CellLocation>>[]) new HTreeMap [numShards];
+		for(int i=0; i<numShards; i++) {
+			shards[i] = db.hashMapCreate(MAP_NAME + "." + i).
+					valueSerializer(new CellLocationListSerializer()).
+					keySerializer(new RawTermSerializer()).
+					make();
+		}
+		return shards;
+		
 	}
 
-	private static void readData(DataInputStream dis, HTreeMap<RawTerm,ArrayList<CellLocation>> dbmap) {
+	private static void readData(DataInputStream dis, HTreeMap<RawTerm,ArrayList<CellLocation>>[] shards) {
+		
+		int numShards = shards.length;
+		
 		int i=0;
+		long start=System.nanoTime();
+		long end = 0;
+		
 		while(true) {
 			try {
 				Cell cell = Cell.read(dis, Sha256Hmac.MAC_LENGTH);
 				// System.out.println("Cell " + cell.getRow() + ":" + cell.getColumn());
-				if (i%10000 == 0) {
+				if (i%100000 == 0) {
+					end = System.nanoTime();
+					System.out.println("Time: " + ((end-start)/1000000000d));
+					start = end;
 					System.out.println("Cell: " + i/1000 +"K");
 				}
 				CellLocation cellLocation = new CellLocation(cell.getRow(), cell.getColumn());
 				
-				//insert into dbmap
+				//insert into appropriate shard
 				RawTerm rt = new RawTerm(cell.getTerm());
-				ArrayList<CellLocation> list = dbmap.get(rt);
+				int hash = rt.hashCode();
+				int positiveHash = (hash <0 ? -hash : hash);
+				int shardIndex = positiveHash / (Integer.MAX_VALUE / numShards);
+				HTreeMap<RawTerm, ArrayList<CellLocation>> shard = shards[shardIndex];
+				
+				// System.out.println("Inserting into shard: " + shardIndex + " Size: " + shard.mappingCount());
+				
+				ArrayList<CellLocation> list = shard.get(rt);
 				if (list == null) {
 					ArrayList<CellLocation> newList = new ArrayList<CellLocation>();
 					newList.add(cellLocation);
 					newList.trimToSize();
-					dbmap.put(rt, newList);
+					shard.put(rt, newList);
 				} else {
 					list.add(cellLocation);
 					list.trimToSize();
-					dbmap.put(rt, list);
+					shard.put(rt, list);
 				}
 				
 			} catch (IOException e) {
