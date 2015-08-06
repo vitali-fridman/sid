@@ -53,9 +53,9 @@ public class CryptoFileReader {
 		DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(file)));
 		
 		readHeader(dis);
-		DB db = createDB(cfr.dbDirectoryName);
+		DB[] databases = createDB(cfr.dbDirectoryName, cfr.numShards);
 		
-		HTreeMap<RawTerm,ArrayList<CellLocation>> shards[] = createMaps(db, cfr.numShards);
+		HTreeMap<RawTerm,ArrayList<CellLocation>> shards[] = createMaps(databases, cfr.numShards);
 		
 		readData(dis, shards);
 		
@@ -64,7 +64,9 @@ public class CryptoFileReader {
 		}
 		
 		dis.close();
-		db.commit();
+		for (DB db : databases) {
+			db.commit();
+		}
 		// db.compact();
 		// inspectDBmap(dbmap);
 		for (HTreeMap<RawTerm,ArrayList<CellLocation>> shard : shards) {
@@ -72,18 +74,26 @@ public class CryptoFileReader {
 		}
 	}
 
-	private static DB createDB(String dbDirectoryName) throws IOException {
+	private static DB[] createDB(String dbDirectoryName, int numShards) throws IOException {
 		FileUtils.deleteQuietly(new File(dbDirectoryName));
 		FileUtils.forceMkdir(new File(dbDirectoryName));
-		DB db = DBMaker.fileDB(new File(dbDirectoryName + "/" + DB_NAME)).
-				// transactionDisable().
-				// closeOnJvmShutdown().
-				fileMmapEnable().
-				asyncWriteEnable().
-				asyncWriteQueueSize(10000).
-				executorEnable().
-				make();
-		return db;
+		DB[] databases = new DB[numShards];
+		for (int i=0; i<numShards; i++) {
+			databases[i] = DBMaker.fileDB(new File(dbDirectoryName + "/" + DB_NAME + "." + i)).
+					transactionDisable().
+					// closeOnJvmShutdown().
+					fileMmapEnable().
+					asyncWriteEnable().
+					asyncWriteFlushDelay(60000).
+					asyncWriteQueueSize(100000).
+					cacheSize(10000000).
+					cacheSoftRefEnable().
+					executorEnable().
+					// _newAppendFileDB(new File(dbDirectoryName + "/" + DB_NAME + ".append" + i)).
+					// metricsEnable().
+					make();
+		}
+		return databases;
 	}
 
 	private static void inspectDBmap(HTreeMap<RawTerm, ArrayList<CellLocation>> dbmap) {
@@ -96,13 +106,14 @@ public class CryptoFileReader {
 		}
 	}
 
-	private static HTreeMap<RawTerm, ArrayList<CellLocation>>[] createMaps(DB db, int numShards) {
+	private static HTreeMap<RawTerm, ArrayList<CellLocation>>[] createMaps(DB[] databases, int numShards) {
 		HTreeMap<RawTerm, ArrayList<CellLocation>>[] shards = 
 				(HTreeMap<RawTerm, ArrayList<CellLocation>>[]) new HTreeMap [numShards];
 		for(int i=0; i<numShards; i++) {
-			shards[i] = db.hashMapCreate(MAP_NAME + "." + i).
+			shards[i] = databases[i].hashMapCreate(MAP_NAME + "." + i).
 					valueSerializer(new CellLocationListSerializer()).
 					keySerializer(new RawTermSerializer()).
+					counterEnable().
 					make();
 		}
 		return shards;
@@ -126,6 +137,9 @@ public class CryptoFileReader {
 					System.out.println("Time: " + ((end-start)/1000000000d));
 					start = end;
 					System.out.println("Cell: " + i/1000 +"K");
+					for (int j=0; j<shards.length; j++) {
+						System.out.println("Srard# " + j + " Size: " + shards[j].size());
+					}
 				}
 				CellLocation cellLocation = new CellLocation(cell.getRow(), cell.getColumn());
 				
