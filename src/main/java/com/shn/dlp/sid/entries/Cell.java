@@ -4,6 +4,8 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 
+import com.google.common.primitives.Ints;
+
 public class Cell extends IndexEntry {
 
 	protected final int row;
@@ -17,7 +19,9 @@ public class Cell extends IndexEntry {
     
     public static Cell read(final DataInputStream in, final int termLength) throws IOException {
         final byte[] term = new byte[termLength];
-        final int row = in.readInt();
+        final byte[] rowBytes = new byte[4];
+        in.readFully(rowBytes);
+        final int row = Ints.fromByteArray(rowBytes);
         final byte col = in.readByte();
         in.readFully(term);
         return new Cell(row, col, term);
