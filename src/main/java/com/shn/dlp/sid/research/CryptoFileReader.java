@@ -29,6 +29,7 @@ public class CryptoFileReader {
 
 	public final static String MAP_NAME = "CellMap";
 	public final static String DB_NAME = "SidDmap";
+	private final static int CELL_LIST_SIZE = 1000;
 	
 	@Option(name="-f",usage="File Name to read", required=true)
 	private String fileName;
@@ -80,11 +81,11 @@ public class CryptoFileReader {
 					closeOnJvmShutdown().
 					fileMmapEnable().
 					asyncWriteEnable().
-					// asyncWriteFlushDelay(60000).
+					asyncWriteFlushDelay(60000).
 					asyncWriteQueueSize(100000).
-					cacheSize(10000000).
-					cacheSoftRefEnable().
-					executorEnable().
+					// cacheSize(10000000).
+					// cacheSoftRefEnable().
+					// executorEnable().
 					// metricsEnable().
 					make();
 		return db;
@@ -135,13 +136,13 @@ public class CryptoFileReader {
 					CellLocation cellLocation = new CellLocation(cell.getRow(), cell.getColumn());
 					ArrayList<CellLocation> list = dbmap.get(rt);
 					if (list == null) {
-						ArrayList<CellLocation> newList = new ArrayList<CellLocation>();
+						ArrayList<CellLocation> newList = new ArrayList<CellLocation>(CELL_LIST_SIZE);
 						newList.add(cellLocation);
-						newList.trimToSize();
+						// newList.trimToSize();
 						dbmap.put(rt, newList);
 					} else {
 						list.add(cellLocation);
-						list.trimToSize();
+						// list.trimToSize();
 						dbmap.put(rt, list);
 					}
 				}

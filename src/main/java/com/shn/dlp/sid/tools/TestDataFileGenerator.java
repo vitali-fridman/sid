@@ -67,7 +67,8 @@ public class TestDataFileGenerator {
 			randoms[i] = new JDKRandomGenerator();
 			randoms[i].setSeed(i);
 			if (i<this.numZipfColumns) {
-				distributions[i] = new ZipfDistribution(randoms[i], this.numZipfSamples, this.zipfExponent);
+				// distributions[i] = new ZipfDistribution(randoms[i], this.numZipfSamples, this.zipfExponent);
+				distributions[i] = new ZipfDistribution(this.numZipfSamples, this.zipfExponent);
 			}
 		}
 		

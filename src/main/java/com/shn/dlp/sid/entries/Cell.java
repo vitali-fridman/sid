@@ -21,10 +21,15 @@ public class Cell extends IndexEntry {
         final byte[] term = new byte[termLength];
         final byte[] rowBytes = new byte[4];
         in.readFully(rowBytes);
-        final int row = Ints.fromByteArray(rowBytes);
+        final int rownumber = Ints.fromByteArray(rowBytes);
         final byte col = in.readByte();
+        // in.skip(com.shn.dlp.sid.security.Sha256Hmac.MAC_LENGTH);
+        int available = in.available();
+        if (available < com.shn.dlp.sid.security.Sha256Hmac.MAC_LENGTH) {
+        	System.out.println("Not enougth bytes available: " + available);
+        }
         in.readFully(term);
-        return new Cell(row, col, term);
+        return new Cell(rownumber, col, term);
     }
     
     @Override
