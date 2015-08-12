@@ -17,7 +17,7 @@ import com.google.common.primitives.Ints;
 import com.shn.dlp.sid.security.CryptoException;
 import com.shn.dlp.sid.security.Sha256Hmac;
 
-public class TestDataFileGenerator {
+public class ZipfTestDataFileGenerator {
 
 	public final static String CLEAR_SUFFIX = ".clear";
 	public final static String CRYPTO_SUFFIX = ".crypto";
@@ -35,7 +35,7 @@ public class TestDataFileGenerator {
 	private BufferedWriter clearWriter;
 	private  Sha256Hmac hmac;
 	
-	TestDataFileGenerator(String fileName, int numColumns, int numRows, int numZipfColumns, int numZipfSamples, double zipfExponent, boolean writeClearFile) {
+	ZipfTestDataFileGenerator(String fileName, int numColumns, int numRows, int numZipfColumns, int numZipfSamples, double zipfExponent, boolean writeClearFile) {
 		this.fileName = fileName;
 		this.numColumns = numColumns;
 		this.numRows = numRows;

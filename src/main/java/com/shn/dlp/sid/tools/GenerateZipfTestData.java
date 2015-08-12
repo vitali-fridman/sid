@@ -9,7 +9,7 @@ import org.kohsuke.args4j.Option;
 
 import com.shn.dlp.sid.security.CryptoException;
 
-public class GenerateTestData {
+public class GenerateZipfTestData {
 	
 	@Option(name="-f",usage="File Name to create", required=true)
 	private String fileName;
@@ -28,7 +28,7 @@ public class GenerateTestData {
 	
 	public static void main(String[] args) {
 		
-		GenerateTestData gtd = new GenerateTestData();
+		GenerateZipfTestData gtd = new GenerateZipfTestData();
 		CmdLineParser parser = new CmdLineParser(gtd);
 		try {
 			parser.parseArgument(args);
@@ -38,7 +38,7 @@ public class GenerateTestData {
 			return;
 		}
 
-		TestDataFileGenerator generator = new TestDataFileGenerator(gtd.fileName, gtd.numColumns, 
+		ZipfTestDataFileGenerator generator = new ZipfTestDataFileGenerator(gtd.fileName, gtd.numColumns, 
 				gtd.numRows, gtd.numZipfColumns, gtd.numZipfSamples, gtd.zipfExponent, gtd.writeClearFile);
 		try {
 			generator.generateFile();
