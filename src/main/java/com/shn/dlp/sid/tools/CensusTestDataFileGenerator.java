@@ -68,25 +68,44 @@ public class CensusTestDataFileGenerator {
 	}
 
 	private void fillAllSamplingData() {
-		fillSamplingDataforSet(this.lastNames, this.lastNamesSampling, 0, this.numRows);
-		fillSamplingDataforSet(this.femaleFirstNames, this.firstNamesSampling, 0, this.numRows/2);
-		fillSamplingDataforSet(this.maleFirstNames, this.firstNamesSampling, this.numRows/2 + 1, this.numRows);
+		fillSamplingDataforSet(this.lastNames, this.lastNamesSampling, 0, this.numRows, false);
+		fillSamplingDataforSet(this.femaleFirstNames, this.firstNamesSampling, 0, this.numRows/2, true);
+		fillSamplingDataforSet(this.maleFirstNames, this.firstNamesSampling, this.numRows/2 + 1, this.numRows, true);
 	}
 
-	private void fillSamplingDataforSet(CensusEntry[] censusEntries, String[] samplingSet, int rangeBottom, int rangeTop) {
+	private void fillSamplingDataforSet(CensusEntry[] censusEntries, String[] samplingSet, int rangeBottom, int rangeTop, boolean reverse) {
 		int previousIndex = 0;
-		for (CensusEntry censusEntry : censusEntries) {
-			int topIndex = (int)Math.ceil((rangeTop - rangeBottom) * censusEntry.cummulativeProbability);
-			if (topIndex == previousIndex) {
-				topIndex++;
+		
+		if (!reverse) {
+			for (int entryIndex=0; entryIndex<censusEntries.length; entryIndex++) {
+				CensusEntry censusEntry = censusEntries[entryIndex];
+				int topIndex = (int)Math.ceil((rangeTop - rangeBottom) * censusEntry.cummulativeProbability);
+				if (topIndex == previousIndex) {
+					topIndex++;
+				}
+				if (previousIndex == rangeTop) {
+					break;
+				}	
+				for (int i=previousIndex; i<topIndex; i++) {
+					samplingSet[i] = censusEntry.name;
+				}
+				previousIndex = topIndex;
 			}
-			if (previousIndex == rangeTop) {
-				break;
+		} else {
+			for (int entryIndex=censusEntries.length-1; entryIndex>=0; entryIndex--) {
+				CensusEntry censusEntry = censusEntries[entryIndex];
+				int topIndex = (int)Math.ceil((rangeTop - rangeBottom) * censusEntry.cummulativeProbability);
+				if (topIndex == previousIndex) {
+					topIndex++;
+				}
+				if (previousIndex == rangeTop) {
+					break;
+				}	
+				for (int i=previousIndex; i<topIndex; i++) {
+					samplingSet[i] = censusEntry.name;
+				}
+				previousIndex = topIndex;
 			}
-			for (int i=previousIndex; i<topIndex; i++) {
-				samplingSet[i] = censusEntry.name;
-			}
-			previousIndex = topIndex;
 		}
 		
 		Random random = new Random();
