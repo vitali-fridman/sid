@@ -6,13 +6,8 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Map.Entry;
-import java.util.Set;
 
 import org.apache.commons.io.FileUtils;
-import org.kohsuke.args4j.CmdLineException;
-import org.kohsuke.args4j.CmdLineParser;
-import org.kohsuke.args4j.Option;
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
 import org.mapdb.HTreeMap;
@@ -25,54 +20,51 @@ import com.shn.dlp.sid.entries.RawTermSerializer;
 import com.shn.dlp.sid.security.Sha256Hmac;
 import com.shn.dlp.sid.tools.ZipfTestDataFileGenerator;
 
-public class CryptoFileReader {
+public class CryptoFileReaderWorker implements Runnable {
 
 	public final static String MAP_NAME = "CellMap";
 	public final static String DB_NAME = "SidDmap";
 	private final static int CELL_LIST_SIZE = 1000;
 	
-	@Option(name="-f",usage="File Name to read", required=true)
-	private String fileName;
-	@Option(name="-d",usage="Database directory name", required=true)
-	private String dbDirectoryName;
-	@Option (name="-n",usage="Shard number", required=true)
-	private int shardNumber;
-	@Option (name="-s",usage="Number of shards", required=true)
-	private int numberOfShards;
+	private final String fileName;
+	private final String dbDirectoryName;
+	private final int numberOfShards;
+	private final int shardNumber;
 	
-	public static void main(String[] args) throws IOException {
-		
-		CryptoFileReader cfr = new CryptoFileReader();
-		CmdLineParser parser = new CmdLineParser(cfr);
+	public CryptoFileReaderWorker(String fileName, String dbDirectoryName, int numberOfShards, int shardNumber) {
+		this.fileName = fileName;
+		this.dbDirectoryName = dbDirectoryName;
+		this.shardNumber = shardNumber;
+		this.numberOfShards = numberOfShards;
+	}
+
+	@Override
+	public void run() {
+		File file = new File(this.fileName + ZipfTestDataFileGenerator.CRYPTO_SUFFIX);
+		DB db = null;;
 		try {
-			parser.parseArgument(args);
-		} catch (CmdLineException e) {
-			System.err.println(e.getMessage());
-			parser.printUsage(System.err);
+			db = createDB(this.dbDirectoryName, this.shardNumber);
+		} catch (IOException e) {
+			System.out.println("Error creating db for shard# " + this.shardNumber);
+			System.out.println(e.getMessage());
+			return;
+		}
+		HTreeMap<RawTerm, ArrayList<CellLocation>> dbmap = createMap(db);
+		try {
+			readData(file, this.numberOfShards, this.shardNumber, db, dbmap);
+		} catch (IOException e) {
+			System.out.println("Error creating index for shard# " + this.shardNumber);
+			System.out.println(e.getMessage());
 			return;
 		}
 		
-		long start=System.nanoTime();
-		
-		File file = new File(cfr.fileName + ZipfTestDataFileGenerator.CRYPTO_SUFFIX);
-		// FileUtils.deleteQuietly(new File(cfr.dbDirectoryName));
-		// FileUtils.forceMkdir(new File(cfr.dbDirectoryName));
-		DB db = createDB(cfr.dbDirectoryName, cfr.shardNumber);
-		HTreeMap<RawTerm, ArrayList<CellLocation>> dbmap = createMap(db);
-		readData(file, cfr.numberOfShards, cfr.shardNumber, db, dbmap);
-		
 		db.commit();
 		db.close();
-		
-		long end = System.nanoTime();
-		System.out.println("Time: " + (end - start)/1000000000d + " sec");
-	}
 
-	private static DB createDB(String dbDirectoryName, int shardNumber) throws IOException {
-		if (shardNumber == 0) {
-			FileUtils.deleteQuietly(new File(dbDirectoryName));
-			FileUtils.forceMkdir(new File(dbDirectoryName));
-		}
+	}
+	
+	private  DB createDB(String dbDirectoryName, int shardNumber) throws IOException {
+		
 		File dbFile = new File(dbDirectoryName + "/" + DB_NAME + "." + shardNumber);
 		FileUtils.deleteQuietly(dbFile);
 		
@@ -92,18 +84,8 @@ public class CryptoFileReader {
 					make();
 		return db;
 	}
-
-	private static void inspectDBmap(HTreeMap<RawTerm, ArrayList<CellLocation>> dbmap) {
-		Set<Entry<RawTerm, ArrayList<CellLocation>>> entrySet = dbmap.entrySet();
-		for (Entry<RawTerm, ArrayList<CellLocation>> entry : entrySet) {
-			System.out.println("Term: " + entry.getKey().toString());
-			for (CellLocation cellLocation : entry.getValue()) {
-				System.out.println("\t" + cellLocation.getRow() + ":" + cellLocation.getColumn());
-			}
-		}
-	}
-
-	private static HTreeMap<RawTerm, ArrayList<CellLocation>> createMap(DB db) {
+	
+	private  HTreeMap<RawTerm, ArrayList<CellLocation>> createMap(DB db) {
 		HTreeMap<RawTerm, ArrayList<CellLocation>> map =
 		db.hashMapCreate(MAP_NAME).
 			valueSerializer(new CellLocationListSerializer()).
@@ -114,7 +96,7 @@ public class CryptoFileReader {
 		
 	}
 
-	private static void readData(File file, int numberOfShards, int shardNumber,
+	private  void readData(File file, int numberOfShards, int shardNumber,
 			DB db, HTreeMap<RawTerm, ArrayList<CellLocation>> dbmap) throws IOException {
 
 		DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(file), 10000000));
@@ -126,7 +108,7 @@ public class CryptoFileReader {
 				Cell cell = Cell.read(dis, Sha256Hmac.MAC_LENGTH);
 				i++;
 				if (i%100000 == 0) {
-					System.out.format("Processing cell# %,d\n", i);
+					System.out.format("Shard: " + this.shardNumber + ". Processing cell# %,d\n", i);
 				}
 				// System.out.println("Cell " + cell.getRow() + ":" + cell.getColumn());
 				RawTerm rt = new RawTerm(cell.getTerm());
@@ -149,14 +131,13 @@ public class CryptoFileReader {
 					}
 				}
 			} catch (IOException e) {
+				dis.close();
 				return;
-			}
+			} 
 		}
-
 	}
 
 	private static void readHeader(DataInputStream dis) throws IOException {
 		dis.skip(6);
 	}
-
 }
