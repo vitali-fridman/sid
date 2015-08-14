@@ -151,6 +151,7 @@ private void writeData() throws CryptoException, IOException {
 			randoms[i].setSeed(i);
 		}
 		
+		int globalCounter = 0;
 		// write data
 		for (int row=0; row<this.numRows; row++) {
 			for (int col=0; col<this.numColumns; col++) {
@@ -161,7 +162,9 @@ private void writeData() throws CryptoException, IOException {
 				} else if (col == 1){
 					clearValue = this.firstNamesSampling[row];
 				} else {
-					clearValue = new Integer(randoms[col-2].nextInt(this.numRows)).toString();
+					clearValue = new Integer(globalCounter).toString();
+					// clearValue = new Integer(randoms[col-2].nextInt(this.numRows)).toString();
+					globalCounter++;
 				}
 				
 				cryptoValue = this.hmac.computeDigest(clearValue);
