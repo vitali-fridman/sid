@@ -7,6 +7,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Map.Entry;
+import java.util.Scanner;
 import java.util.Set;
 
 import org.apache.commons.io.FileUtils;
@@ -15,6 +16,7 @@ import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
+import org.mapdb.Fun;
 import org.mapdb.HTreeMap;
 
 import com.shn.dlp.sid.entries.Cell;
@@ -42,6 +44,9 @@ public class CryptoFileReader {
 	
 	public static void main(String[] args) throws IOException {
 		
+		// Scanner in = new Scanner(System.in);
+		// in.nextLine();
+		
 		CryptoFileReader cfr = new CryptoFileReader();
 		CmdLineParser parser = new CmdLineParser(cfr);
 		try {
@@ -64,8 +69,42 @@ public class CryptoFileReader {
 		db.commit();
 		db.close();
 		
+		db = null;
+		dbmap = null;
+		System.gc();
+		System.gc();
+		System.gc();
+		
+		db = openDB(cfr.dbDirectoryName, cfr.shardNumber);
+		dbmap = openMap(db);
+		inspectDBmap(dbmap);
+		
+		db.close();
+		
 		long end = System.nanoTime();
 		System.out.println("Time: " + (end - start)/1000000000d + " sec");
+	}
+
+	private static HTreeMap<RawTerm, ArrayList<CellLocation>> openMap(DB db) {
+		HTreeMap<RawTerm, ArrayList<CellLocation>> map = db.hashMap(MAP_NAME, 
+				new RawTermSerializer(), 
+				new CellLocationListSerializer(), 
+				new Fun.Function1<ArrayList<CellLocation>, RawTerm>() {
+			@Override
+			public ArrayList<CellLocation> run(RawTerm a) {
+				ArrayList<CellLocation> locations = new ArrayList<CellLocation>();
+				locations.add(new CellLocation(-1, -1));
+				return locations;
+			}
+		});
+		
+		return map;
+	}
+
+	private static DB openDB(String dbDirectoryName, int shardNumber) {
+		File dbFile = new File(dbDirectoryName + "/" + DB_NAME + "." + shardNumber);
+		DB db = DBMaker.fileDB(dbFile).readOnly().make();
+		return db;
 	}
 
 	private static DB createDB(String dbDirectoryName, int shardNumber) throws IOException {
@@ -83,7 +122,7 @@ public class CryptoFileReader {
 					asyncWriteEnable().
 					asyncWriteFlushDelay(60000).
 					asyncWriteQueueSize(100000).
-					// allocateStartSize(10*1024*1024*1024).
+					allocateStartSize(1*1024*1024*1024).
 					// allocateRecidReuseDisable().
 					// cacheSize(10000000).
 					// cacheSoftRefEnable().
