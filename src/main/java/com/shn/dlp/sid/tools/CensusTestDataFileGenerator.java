@@ -18,10 +18,9 @@ import com.shn.dlp.sid.security.Sha256Hmac;
 public class CensusTestDataFileGenerator {
 
 	public final static String CLEAR_SUFFIX = ".clear";
-	public final static String CRYPTO_SUFFIX = ".crypto";
 	private final static int FORMAT_VERSION = 1;
 	private final static int BUFFER_SIZE = 1024*1024*100;
-	
+
 	private static final int NUM_LAST_NAMES = 88799;
 	private static final int NUM_FEMALE_FIRST_NAMES = 4275;
 	private static final int NUM_MALE_FIST_NAMES = 1219;
@@ -41,7 +40,7 @@ public class CensusTestDataFileGenerator {
 	private CensusEntry[] lastNames;
 	private CensusEntry[] femaleFirstNames;
 	private CensusEntry[] maleFirstNames;
-	
+
 	public CensusTestDataFileGenerator(String fileName, int numColumns, int numRows, boolean writeClearFile) {
 		this.fileName = fileName;
 		this.numColumns = numColumns;
@@ -55,27 +54,27 @@ public class CensusTestDataFileGenerator {
 		this.hmac = new Sha256Hmac();
 		loadCensusData();
 		fillAllSamplingData();
-		
-		this.cryptoWriter = new BufferedOutputStream(new FileOutputStream(new File(this.fileName + CRYPTO_SUFFIX)), BUFFER_SIZE);
+
+		this.cryptoWriter = new BufferedOutputStream(new FileOutputStream(new File(this.fileName + Sha256Hmac.CRYPRO_FILE_SUFFIX)), BUFFER_SIZE);
 		if (writeClearFile) {
 			clearWriter = new BufferedWriter(new FileWriter(new File(this.fileName + CLEAR_SUFFIX)));
 		} else {
 			clearWriter = null;
 		}
+		
 		writeHeader();
 		writeData();
 		close();
 	}
 
 	private void fillAllSamplingData() {
-		fillSamplingDataforSet(this.lastNames, this.lastNamesSampling, 0, this.numRows, false);
-		fillSamplingDataforSet(this.femaleFirstNames, this.firstNamesSampling, 0, this.numRows/2, true);
-		fillSamplingDataforSet(this.maleFirstNames, this.firstNamesSampling, this.numRows/2 + 1, this.numRows, true);
+		fillSamplingDataforSet(this.lastNames, this.lastNamesSampling, 0, this.numRows, false, 1);
+		fillSamplingDataforSet(this.femaleFirstNames, this.firstNamesSampling, 0, this.numRows/2, true, 2);
+		fillSamplingDataforSet(this.maleFirstNames, this.firstNamesSampling, this.numRows/2 + 1, this.numRows, true, 3);
 	}
 
-	private void fillSamplingDataforSet(CensusEntry[] censusEntries, String[] samplingSet, int rangeBottom, int rangeTop, boolean reverse) {
+	private void fillSamplingDataforSet(CensusEntry[] censusEntries, String[] samplingSet, int rangeBottom, int rangeTop, boolean reverse, long randomSeed) {
 		int previousIndex = 0;
-		
 		if (!reverse) {
 			for (int entryIndex=0; entryIndex<censusEntries.length; entryIndex++) {
 				CensusEntry censusEntry = censusEntries[entryIndex];
@@ -107,8 +106,8 @@ public class CensusTestDataFileGenerator {
 				previousIndex = topIndex;
 			}
 		}
-		
-		Random random = new Random();
+
+		Random random = new Random(randomSeed);
 		for (int i=previousIndex; i<rangeTop; i++) {
 			samplingSet[i] = censusEntries[random.nextInt(censusEntries.length)].name;
 		}
@@ -119,7 +118,7 @@ public class CensusTestDataFileGenerator {
 		this.femaleFirstNames = loadNames(FEMALE_FIRST_NAMES_FILE, NUM_FEMALE_FIRST_NAMES);
 		this.maleFirstNames = loadNames(MALE_FIRST_NAMES_FILE, NUM_MALE_FIST_NAMES);
 	}
-	
+
 	private CensusEntry[] loadNames(String fileName, int numEntries) throws IOException {
 		CensusEntry[] entries = new CensusEntry[numEntries];
 		ClassLoader classLoader = this.getClass().getClassLoader();
@@ -138,21 +137,13 @@ public class CensusTestDataFileGenerator {
 		}
 		scanner.close();
 		is.close();
-		
+
 		return entries;
 	}
-	
-private void writeData() throws CryptoException, IOException {
-		
-		// initialize required number if Zipf distributions
-		Random[] randoms = new Random[this.numColumns-2];
-		for (int i=0; i<this.numColumns-2; i++) {
-			randoms[i] = new Random();
-			randoms[i].setSeed(i);
-		}
-		
+
+	private void writeData() throws CryptoException, IOException {
+
 		int globalCounter = 0;
-		// write data
 		for (int row=0; row<this.numRows; row++) {
 			for (int col=0; col<this.numColumns; col++) {
 				String clearValue;
@@ -163,15 +154,14 @@ private void writeData() throws CryptoException, IOException {
 					clearValue = this.firstNamesSampling[row];
 				} else {
 					clearValue = new Integer(globalCounter).toString();
-					// clearValue = new Integer(randoms[col-2].nextInt(this.numRows)).toString();
 					globalCounter++;
 				}
-				
+
 				cryptoValue = this.hmac.computeDigest(clearValue);
 				this.cryptoWriter.write(intToBytes(row));
 				this.cryptoWriter.write(col);
 				this.cryptoWriter.write(cryptoValue);
-				
+
 				if (this.clearWriter != null) {
 					this.clearWriter.write(clearValue + "\t");
 				}
@@ -183,14 +173,14 @@ private void writeData() throws CryptoException, IOException {
 				System.out.println("Row: " + row/1000 +"K");
 			}
 		}
-		
+
 	}
 
 	private void writeHeader() throws IOException {
 		this.cryptoWriter.write(FORMAT_VERSION);
 		this.cryptoWriter.write(intToBytes(this.numRows));
 		this.cryptoWriter.write(this.numColumns);
-		
+
 		if (this.clearWriter != null) {
 			this.clearWriter.write("Format Version: " + FORMAT_VERSION);
 			this.clearWriter.newLine();
@@ -202,26 +192,25 @@ private void writeData() throws CryptoException, IOException {
 			this.clearWriter.newLine();
 		}
 	}
-	
+
 	private void close() throws IOException {
 		this.cryptoWriter.close();
 		if (clearWriter != null) {
 			this.clearWriter.close();
 		}
 	}
-	
+
 	private static byte[] intToBytes(int value) {
 		return Ints.toByteArray(value);
 	}
 
 	private static class CensusEntry {
-		private String name;
-		private float cummulativeProbability;
-		
-		 CensusEntry(String name, float cummulativeProbability) {
+		private final String name;
+		private final float cummulativeProbability;
+
+		CensusEntry(String name, float cummulativeProbability) {
 			this.name = name;
 			this.cummulativeProbability = cummulativeProbability;
 		}
-		
 	}
 }

@@ -10,11 +10,7 @@ import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 
-import com.shn.dlp.sid.tools.ZipfTestDataFileGenerator;
-
 public class CryptoFileReaderMultiThreaded {
-	
-	
 	
 	@Option(name="-f",usage="File Name to read", required=true)
 	private String fileName;

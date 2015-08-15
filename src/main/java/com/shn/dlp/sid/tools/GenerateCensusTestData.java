@@ -30,6 +30,16 @@ public class GenerateCensusTestData {
 			return;
 		}
 		
+		if (gtd.numColumns < 3) {
+			System.err.println("Number of columns must be at least 3.");
+			return;
+		}
+		
+		if (gtd.numRows < 100000) {
+			System.err.println("Number of rows must be at least 100K.");
+			return;
+		}
+		
 		CensusTestDataFileGenerator generator = new CensusTestDataFileGenerator(gtd.fileName, gtd.numColumns, 
 				gtd.numRows, gtd.writeClearFile);
 		try {

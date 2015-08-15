@@ -8,6 +8,7 @@ import javax.crypto.ShortBufferException;
 import javax.crypto.spec.SecretKeySpec;
 
 public final class Sha256Hmac {
+	public static final String CRYPRO_FILE_SUFFIX = ".crypto";
 	private static final String MAC_ALGORITHM_NAME = "HmacSHA256";
 	private static final byte[] BUILTIN_KEY = "56778990sdsfnbvnf87JHGSDFmjk)(%ks".getBytes(); 
 	public static final int MAC_LENGTH = 32;

@@ -18,7 +18,6 @@ import com.shn.dlp.sid.entries.CellLocationListSerializer;
 import com.shn.dlp.sid.entries.RawTerm;
 import com.shn.dlp.sid.entries.RawTermSerializer;
 import com.shn.dlp.sid.security.Sha256Hmac;
-import com.shn.dlp.sid.tools.ZipfTestDataFileGenerator;
 
 public class CryptoFileReaderWorker implements Runnable {
 
@@ -40,7 +39,7 @@ public class CryptoFileReaderWorker implements Runnable {
 
 	@Override
 	public void run() {
-		File file = new File(this.fileName + ZipfTestDataFileGenerator.CRYPTO_SUFFIX);
+		File file = new File(this.fileName + Sha256Hmac.CRYPRO_FILE_SUFFIX);
 		DB db = null;;
 		try {
 			db = createDB(this.dbDirectoryName, this.shardNumber);

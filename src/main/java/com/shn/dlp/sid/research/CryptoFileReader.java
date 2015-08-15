@@ -7,7 +7,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Map.Entry;
-import java.util.Scanner;
 import java.util.Set;
 
 import org.apache.commons.io.FileUtils;
@@ -25,7 +24,6 @@ import com.shn.dlp.sid.entries.CellLocationListSerializer;
 import com.shn.dlp.sid.entries.RawTerm;
 import com.shn.dlp.sid.entries.RawTermSerializer;
 import com.shn.dlp.sid.security.Sha256Hmac;
-import com.shn.dlp.sid.tools.ZipfTestDataFileGenerator;
 
 public class CryptoFileReader {
 
@@ -59,7 +57,7 @@ public class CryptoFileReader {
 		
 		long start=System.nanoTime();
 		
-		File file = new File(cfr.fileName + ZipfTestDataFileGenerator.CRYPTO_SUFFIX);
+		File file = new File(cfr.fileName + Sha256Hmac.CRYPRO_FILE_SUFFIX);
 		// FileUtils.deleteQuietly(new File(cfr.dbDirectoryName));
 		// FileUtils.forceMkdir(new File(cfr.dbDirectoryName));
 		DB db = createDB(cfr.dbDirectoryName, cfr.shardNumber);
