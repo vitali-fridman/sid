@@ -1,6 +1,10 @@
 package com.shn.dlp.sid.research;
 
+import java.io.BufferedInputStream;
+import java.io.DataInputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -10,7 +14,11 @@ import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 
+import com.shn.dlp.sid.security.Sha256Hmac;
+
 public class CryptoFileReaderMultiThreaded {
+	
+	private static final double OPTIMAL_CELLS_PER_SHARD = 15000000d;
 	
 	@Option(name="-f",usage="File Name to read", required=true)
 	private String fileName;
@@ -18,8 +26,8 @@ public class CryptoFileReaderMultiThreaded {
 	private String dbDirectoryName;
 	@Option (name="-t",usage="Number of threads", required=true)
 	private int numThreads;
-	@Option (name="-s",usage="Number of shards", required=true)
-	private int numberOfShards;
+	// @Option (name="-s",usage="Number of shards", required=true) 
+	// private int numberOfShards;
 	
 	public static void main(String[] args) throws IOException {
 		
@@ -37,10 +45,10 @@ public class CryptoFileReaderMultiThreaded {
 		
 		FileUtils.deleteQuietly(new File(cfr.dbDirectoryName));
 		FileUtils.forceMkdir(new File(cfr.dbDirectoryName));
-		
+		int numShards = calculateNumberOfShards(cfr.fileName);
 		ExecutorService executor = Executors.newFixedThreadPool(cfr.numThreads);
-		for (int i = 0; i < cfr.numberOfShards; i++) {
-			Runnable worker = new CryptoFileReaderWorker(cfr.fileName, cfr.dbDirectoryName, cfr.numberOfShards, i);
+		for (int i = 0; i < numShards; i++) {
+			Runnable worker = new CryptoFileReaderWorker(cfr.fileName, cfr.dbDirectoryName, numShards, i);
 		    executor.execute(worker);
 		}
 		executor.shutdown();
@@ -49,5 +57,24 @@ public class CryptoFileReaderMultiThreaded {
 		
 		long end = System.nanoTime();
 		System.out.println("Time: " + (end - start)/1000000000d + " sec");
+	}
+	
+	private static int calculateNumberOfShards(String cryptoFileName) {
+		try {
+			DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(cryptoFileName + Sha256Hmac.CRYPRO_FILE_SUFFIX)));
+			int formatVersion = dis.readByte();
+			int numColumns = dis.readInt();
+			int numRows = dis.readByte();
+			int numCells = numColumns*numRows;
+			int numShards = (int)Math.ceil(numCells / OPTIMAL_CELLS_PER_SHARD);
+			return numShards;
+			
+		} catch (FileNotFoundException e) {
+			System.err.println("Crypto File: " + cryptoFileName + " not found");
+			return -1;
+		} catch (IOException e) {
+			System.err.println("Error reading header of Crypto File: " + cryptoFileName + e.getMessage());
+			return -1;
+		}
 	}
 }

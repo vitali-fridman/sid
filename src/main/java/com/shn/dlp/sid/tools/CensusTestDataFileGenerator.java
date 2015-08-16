@@ -64,7 +64,7 @@ public class CensusTestDataFileGenerator {
 		
 		writeHeader();
 		writeData();
-		close();
+		close(); 
 	}
 
 	private void fillAllSamplingData() {

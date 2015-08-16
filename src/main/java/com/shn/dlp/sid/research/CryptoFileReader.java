@@ -44,7 +44,7 @@ public class CryptoFileReader {
 		
 		// Scanner in = new Scanner(System.in);
 		// in.nextLine();
-		
+		 
 		CryptoFileReader cfr = new CryptoFileReader();
 		CmdLineParser parser = new CmdLineParser(cfr);
 		try {
@@ -120,7 +120,7 @@ public class CryptoFileReader {
 					asyncWriteEnable().
 					asyncWriteFlushDelay(60000).
 					asyncWriteQueueSize(100000).
-					allocateStartSize(1*1024*1024*1024).
+					allocateStartSize(1*1024*1024*1024). 
 					// allocateRecidReuseDisable().
 					// cacheSize(10000000).
 					// cacheSoftRefEnable().

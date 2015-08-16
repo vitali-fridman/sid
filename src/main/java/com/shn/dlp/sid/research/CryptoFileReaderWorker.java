@@ -40,11 +40,11 @@ public class CryptoFileReaderWorker implements Runnable {
 	@Override
 	public void run() {
 		File file = new File(this.fileName + Sha256Hmac.CRYPRO_FILE_SUFFIX);
-		DB db = null;;
+		DB db = null;
 		try {
 			db = createDB(this.dbDirectoryName, this.shardNumber);
 		} catch (IOException e) {
-			System.out.println("Error creating db for shard# " + this.shardNumber);
+			System.out.println("Error creating db for shard# " + this.shardNumber); 
 			System.out.println(e.getMessage());
 			return;
 		}
@@ -74,7 +74,7 @@ public class CryptoFileReaderWorker implements Runnable {
 					asyncWriteEnable().
 					asyncWriteFlushDelay(60000).
 					asyncWriteQueueSize(100000).
-					// allocateStartSize(10*1024*1024*1024).
+					allocateStartSize(1*1024*1024*1024).
 					// allocateRecidReuseDisable().
 					// cacheSize(10000000).
 					// cacheSoftRefEnable().
