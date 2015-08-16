@@ -5,12 +5,15 @@ import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 
 import org.apache.commons.io.FileUtils;
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
 import org.mapdb.HTreeMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.shn.dlp.sid.entries.Cell;
 import com.shn.dlp.sid.entries.CellLocation;
@@ -25,6 +28,8 @@ public class CryptoFileReaderWorker implements Runnable {
 	public final static String DB_NAME = "SidDmap";
 	private final static int CELL_LIST_SIZE = 1000;
 	private final static long GIG = 1024*1024*1024l;
+	private final static long  MEG = 1024*1024L;
+	private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());  
 	
 	private final String fileName;
 	private final String dbDirectoryName;
@@ -45,22 +50,22 @@ public class CryptoFileReaderWorker implements Runnable {
 		try {
 			db = createDB(this.dbDirectoryName, this.shardNumber);
 		} catch (IOException e) {
-			System.out.println("Error creating db for shard# " + this.shardNumber); 
-			System.out.println(e.getMessage());
+			LOG.error("Error creating db for shard# " + this.shardNumber); 
+			LOG.error(e.getMessage());
 			return;
 		}
 		HTreeMap<RawTerm, ArrayList<CellLocation>> dbmap = createMap(db);
 		try {
 			readData(file, this.numberOfShards, this.shardNumber, db, dbmap);
 		} catch (IOException e) {
-			System.out.println("Error creating index for shard# " + this.shardNumber);
-			System.out.println(e.getMessage());
+			LOG.error("Error creating index for shard# " + this.shardNumber);
+			LOG.error(e.getMessage());
 			return;
 		}
 		
 		db.commit();
 		db.close();
-
+		
 	}
 	
 	private  DB createDB(String dbDirectoryName, int shardNumber) throws IOException {
@@ -75,13 +80,9 @@ public class CryptoFileReaderWorker implements Runnable {
 					asyncWriteEnable().
 					asyncWriteFlushDelay(60000).
 					asyncWriteQueueSize(100000).
-					allocateStartSize(GIG).
-					allocateIncrement(GIG).
-					// allocateRecidReuseDisable().
-					// cacheSize(10000000).
-					// cacheSoftRefEnable().
-					// executorEnable().
-					// metricsEnable().
+					allocateStartSize(100*MEG).
+					allocateIncrement(100*MEG).
+					metricsEnable().
 					make();
 		return db;
 	}
@@ -109,25 +110,21 @@ public class CryptoFileReaderWorker implements Runnable {
 				Cell cell = Cell.read(dis, Sha256Hmac.MAC_LENGTH);
 				i++;
 				if (i%100000 == 0) {
-					System.out.format("Shard: " + this.shardNumber + ". Processing cell# %,d\n", i);
+					LOG.info("Shard: " + this.shardNumber + ". Processing cell# " + String.format("%,d", i));
 				}
-				// System.out.println("Cell " + cell.getRow() + ":" + cell.getColumn());
 				RawTerm rt = new RawTerm(cell.getTerm());
 				int hash = rt.hashCode();
 				int positiveHash = (hash <0 ? -hash : hash);
 				int shardIndex = positiveHash / (Integer.MAX_VALUE / numberOfShards);
 				if (shardIndex == shardNumber) {
-					// System.out.println("Adding cell: " + cell.getRow() + "/" + cell.getColumn() + " to shard: " + shardNumber);
 					CellLocation cellLocation = new CellLocation(cell.getRow(), cell.getColumn());
 					ArrayList<CellLocation> list = dbmap.get(rt);
 					if (list == null) {
 						ArrayList<CellLocation> newList = new ArrayList<CellLocation>(CELL_LIST_SIZE);
 						newList.add(cellLocation);
-						// newList.trimToSize();
 						dbmap.put(rt, newList);
 					} else {
 						list.add(cellLocation);
-						// list.trimToSize();
 						dbmap.put(rt, list);
 					}
 				}

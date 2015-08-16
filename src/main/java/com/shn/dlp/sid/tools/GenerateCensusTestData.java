@@ -1,10 +1,15 @@
 package com.shn.dlp.sid.tools;
 
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 
+import org.apache.log4j.BasicConfigurator;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
+import org.kohsuke.args4j.OptionHandlerFilter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.shn.dlp.sid.security.CryptoException;
 
@@ -19,24 +24,26 @@ public class GenerateCensusTestData {
 	@Option(name="-print",usage="Use if you need file content printed in clear")
 	private boolean writeClearFile;
 	
-	public static void main(String[] args) {
-		GenerateCensusTestData gtd = new GenerateCensusTestData();
+	private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());  
+	
+	public static void main(String[] args) {  
+		GenerateCensusTestData gtd = new GenerateCensusTestData();  
 		CmdLineParser parser = new CmdLineParser(gtd);
 		try {
 			parser.parseArgument(args);
-		} catch (CmdLineException e) {
-			System.err.println(e.getMessage());
-			parser.printUsage(System.err);
+		} catch (CmdLineException e) {  
+			LOG.error(e.getMessage());   
+			LOG.error(parser.printExample(OptionHandlerFilter.ALL));
 			return;
 		}
 		
 		if (gtd.numColumns < 3) {
-			System.err.println("Number of columns must be at least 3.");
+			LOG.error("Number of columns must be at least 3.");
 			return;
 		}
 		
 		if (gtd.numRows < 100000) {
-			System.err.println("Number of rows must be at least 100K.");
+			LOG.error("Number of rows must be at least 100K.");
 			return;
 		}
 		
@@ -45,11 +52,11 @@ public class GenerateCensusTestData {
 		try {
 			generator.generateFile();
 		} catch (IOException | CryptoException e) {
-			System.err.println("Error generating file: " + e.getMessage());
+			LOG.error("Error generating file: " + e.getMessage());
 			return;
 		}
 		
-		System.out.println("Data file generated.");
+		LOG.info("Data file generated.");
 
 	}
 

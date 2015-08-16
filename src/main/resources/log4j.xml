@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE log4j:configuration SYSTEM "log4j.dtd">
+<log4j:configuration debug="false">
+	<!-- appenders for 'normal' files -->
+	<appender name="ASYNC" class="org.apache.log4j.AsyncAppender">
+		<appender-ref ref="DEBUG" />
+		<appender-ref ref="INFO" />
+	</appender>
+
+	<appender name="CONSOLE" class="org.apache.log4j.ConsoleAppender">
+		<param name="Threshold" value="DEBUG" />
+		<layout class="org.apache.log4j.PatternLayout">
+			<param name="ConversionPattern" value="%d{dd MMM yyyy HH:mm:ss,SSS} [%-5p] [%t] %-25.50c{1}| %m%n" />
+		</layout>
+	</appender>
+
+	<appender name="DEBUG" class="org.apache.log4j.RollingFileAppender">
+		<param name="Threshold" value="DEBUG" />
+		<param name="File" value="./logs/sid-debug.log" />
+		<param name="Append" value="true" />
+		<param name="MaxFileSize" value="10000KB" />
+		<param name="maxBackupIndex" value="5" />
+		<layout class="org.apache.log4j.PatternLayout">
+			<param name="ConversionPattern" value="%d{dd MMM yyyy HH:mm:ss,SSS} [%-5p] [%t] %-25.50c{1}| %m%n" />
+		</layout>
+	</appender>
+
+	<appender name="INFO" class="org.apache.log4j.RollingFileAppender">
+		<param name="Threshold" value="INFO" />
+		<param name="File" value="./logs/sid-info.log" />
+		<param name="Append" value="true" />
+		<param name="MaxFileSize" value="10000KB" />
+		<param name="maxBackupIndex" value="5" />
+		<layout class="org.apache.log4j.PatternLayout">
+			<param name="ConversionPattern" value="%d{dd MMM yyyy HH:mm:ss,SSS} [%-5p] [%t] %-25.50c{1}| %m%n" />
+		</layout>
+	</appender>
+
+
+	<logger name="log4j">
+		<level value="error" />
+	</logger>
+	
+	<root>
+		<priority value="DEBUG" />
+		<appender-ref ref="ASYNC" />
+	</root>
+</log4j:configuration>

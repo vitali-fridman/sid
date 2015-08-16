@@ -8,8 +8,13 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.invoke.MethodHandles;
 import java.util.Random;
 import java.util.Scanner;
+
+import org.apache.log4j.BasicConfigurator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.common.primitives.Ints;
 import com.shn.dlp.sid.security.CryptoException;
@@ -27,6 +32,7 @@ public class CensusTestDataFileGenerator {
 	private static final String LAST_NAMES_FILE = "dist.all.last";	
 	private static final String FEMALE_FIRST_NAMES_FILE = "dist.female.first";
 	private static final String MALE_FIRST_NAMES_FILE = "dist.male.first";
+	private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
 	private final String fileName;
 	private final int numColumns;
@@ -170,7 +176,7 @@ public class CensusTestDataFileGenerator {
 				this.clearWriter.newLine();
 			}
 			if (row%10000 == 0) {
-				System.out.println("Row: " + row/1000 +"K");
+				LOG.info("Row: " + row/1000 +"K");
 			}
 		}
 

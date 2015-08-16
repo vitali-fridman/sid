@@ -21,7 +21,7 @@ public class GenerateCensusTestDataTest {
 	public void testMain() {
 		String tempDirectory = System.getProperty("java.io.tmpdir");
 		ClassLoader classLoader = this.getClass().getClassLoader();
-		InputStream is = classLoader.getResourceAsStream(FILE_NAME);
+		InputStream is = classLoader.getResourceAsStream(FILE_NAME);   
 		try {
 			Files.copy(is, Paths.get(tempDirectory, GOLD_FILE_NAME), StandardCopyOption.REPLACE_EXISTING);
 		} catch (IOException e) {

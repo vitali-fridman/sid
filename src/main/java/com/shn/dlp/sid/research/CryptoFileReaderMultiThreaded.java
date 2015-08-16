@@ -6,13 +6,18 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.lang.invoke.MethodHandles;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import org.apache.commons.io.FileUtils;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
+import org.kohsuke.args4j.ExampleMode;
 import org.kohsuke.args4j.Option;
+import org.kohsuke.args4j.OptionHandlerFilter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.shn.dlp.sid.security.Sha256Hmac;
 
@@ -29,6 +34,9 @@ public class CryptoFileReaderMultiThreaded {
 	// @Option (name="-s",usage="Number of shards", required=true) 
 	// private int numberOfShards;
 	
+	private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());  
+
+	
 	public static void main(String[] args) throws IOException {
 		
 		CryptoFileReaderMultiThreaded cfr = new CryptoFileReaderMultiThreaded();
@@ -36,8 +44,8 @@ public class CryptoFileReaderMultiThreaded {
 		try {
 			parser.parseArgument(args);
 		} catch (CmdLineException e) {
-			System.err.println(e.getMessage());
-			parser.printUsage(System.err);
+			LOG.error(e.getMessage());
+			LOG.error(parser.printExample(OptionHandlerFilter.ALL));
 			return;
 		}
 		
@@ -56,7 +64,7 @@ public class CryptoFileReaderMultiThreaded {
 		}
 		
 		long end = System.nanoTime();
-		System.out.println("Time: " + (end - start)/1000000000d + " sec");
+		LOG.info("Time: " + (end - start)/1000000000d + " sec");
 	}
 	
 	private static int calculateNumberOfShards(String cryptoFileName) {
@@ -70,10 +78,10 @@ public class CryptoFileReaderMultiThreaded {
 			return numShards;
 			
 		} catch (FileNotFoundException e) {
-			System.err.println("Crypto File: " + cryptoFileName + " not found");
+			LOG.error("Crypto File: " + cryptoFileName + " not found");
 			return -1;
 		} catch (IOException e) {
-			System.err.println("Error reading header of Crypto File: " + cryptoFileName + e.getMessage());
+			LOG.error("Error reading header of Crypto File: " + cryptoFileName + e.getMessage());
 			return -1;
 		}
 	}
