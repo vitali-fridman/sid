@@ -24,6 +24,7 @@ public class CryptoFileReaderWorker implements Runnable {
 	public final static String MAP_NAME = "CellMap";
 	public final static String DB_NAME = "SidDmap";
 	private final static int CELL_LIST_SIZE = 1000;
+	private final static long GIG = 1024*1024*1024l;
 	
 	private final String fileName;
 	private final String dbDirectoryName;
@@ -74,7 +75,8 @@ public class CryptoFileReaderWorker implements Runnable {
 					asyncWriteEnable().
 					asyncWriteFlushDelay(60000).
 					asyncWriteQueueSize(100000).
-					allocateStartSize(1*1024*1024*1024).
+					allocateStartSize(GIG).
+					allocateIncrement(GIG).
 					// allocateRecidReuseDisable().
 					// cacheSize(10000000).
 					// cacheSoftRefEnable().
