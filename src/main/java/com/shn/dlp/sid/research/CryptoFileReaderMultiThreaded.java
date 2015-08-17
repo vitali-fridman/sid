@@ -20,6 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.shn.dlp.sid.security.Sha256Hmac;
+import com.shn.dlp.sid.util.PeriodicGarbageCollector;
 
 public class CryptoFileReaderMultiThreaded {
 	
@@ -53,6 +54,11 @@ public class CryptoFileReaderMultiThreaded {
 		
 		FileUtils.deleteQuietly(new File(cfr.dbDirectoryName));
 		FileUtils.forceMkdir(new File(cfr.dbDirectoryName));
+		
+		PeriodicGarbageCollector pgc = new PeriodicGarbageCollector(10000);
+		pgc.setDaemon(true);
+		pgc.start();
+		
 		int numShards = calculateNumberOfShards(cfr.fileName);
 		ExecutorService executor = Executors.newFixedThreadPool(cfr.numThreads);
 		for (int i = 0; i < numShards; i++) {

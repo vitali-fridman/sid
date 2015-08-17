@@ -11,4 +11,7 @@ public class MemoryInfo {
 		return runtime.freeMemory() + runtime.maxMemory() - runtime.totalMemory();
 	}
 
+	public static long getAvailableMemoryNoGc() {
+		return runtime.freeMemory() + runtime.maxMemory() - runtime.totalMemory();
+	}
 }

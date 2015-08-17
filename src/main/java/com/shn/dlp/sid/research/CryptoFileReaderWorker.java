@@ -21,6 +21,7 @@ import com.shn.dlp.sid.entries.CellLocationListSerializer;
 import com.shn.dlp.sid.entries.RawTerm;
 import com.shn.dlp.sid.entries.RawTermSerializer;
 import com.shn.dlp.sid.security.Sha256Hmac;
+import com.shn.dlp.sid.util.MemoryInfo;
 
 public class CryptoFileReaderWorker implements Runnable {
 
@@ -109,8 +110,11 @@ public class CryptoFileReaderWorker implements Runnable {
 			try {
 				Cell cell = Cell.read(dis, Sha256Hmac.MAC_LENGTH);
 				i++;
-				if (i%100000 == 0) {
+				if (i%5000000 == 0) {
 					LOG.info("Shard: " + this.shardNumber + ". Processing cell# " + String.format("%,d", i));
+//					if (i%25000000 == 0) {
+//						LOG.info("Available memory: " + String.format("%,d",MemoryInfo.getAvailableMemoryNoGc()/MEG) + "MB");
+//					}
 				}
 				RawTerm rt = new RawTerm(cell.getTerm());
 				int hash = rt.hashCode();
