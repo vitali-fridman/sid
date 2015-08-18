@@ -32,8 +32,6 @@ public class CryptoFileReaderMultiThreaded {
 	private String dbDirectoryName;
 	@Option (name="-t",usage="Number of threads", required=true)
 	private int numThreads;
-	// @Option (name="-s",usage="Number of shards", required=true) 
-	// private int numberOfShards;
 	
 	private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());  
 
