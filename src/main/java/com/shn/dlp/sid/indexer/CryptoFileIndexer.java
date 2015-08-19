@@ -119,7 +119,7 @@ public class CryptoFileIndexer {
 		}
 		
 		long end = System.nanoTime();
-		LOG.info("Time took to index " + cfr.fileName + (end - start)/1000000000d + " sec");
+		LOG.info("Time took to index " + cfr.fileName + " " + (end - start)/1000000000d + " sec");
 	}
 	
 	private static int calculateNumberOfShards(SidConfiguration config, String cryptoFileName) throws IOException {

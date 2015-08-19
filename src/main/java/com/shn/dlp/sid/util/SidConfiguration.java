@@ -13,12 +13,13 @@ import org.slf4j.LoggerFactory;
 
 public class SidConfiguration {
 
+	private final Properties properties;
+
 	private final static long GIG = 1024*1024*1024l;
 	private final static long MEG = 1024*1024L;
 	
 	private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 	private final static String PROPERTIES_FILE = "sid.properties";
-	private final Properties properties;
 
 	private final static String MOUNT_POINT_DEFAULT = "/mnt/sid/";
 	private final static String MOUNT_POINT_PROP = "sid.DiskMountPont";
@@ -50,6 +51,14 @@ public class SidConfiguration {
 	private final static long INDEXER_MAPDB_SIZE_INCREMENT_DEFAULT = 128 * MEG;
 	private final static String INDEXER_MAPDB_SIZE_INCREMENT_PROP = "sid.indexer.mapDbSizeIncrement";
 	
+	private static final int INDEXER_ASYNC_WRRITE_QUEUE_SIZE_DEFAULT = 100000;
+	private static final String INDEXER_ASYNC_WRRITE_QUEUE_SIZE_PROP = "sid.indexer.asyncWriteQueueSize";
+	
+	private final static int INDEXER_ASYNC_WRITE_FLUSH_DELAY_DEFAULT = 60000;
+	private final static String INDEXER_ASYNC_WRITE_FLUSH_DELAY_PROP = "sid.indexer.asyncWriteFlushDelay";
+	
+	private final static int INDEXER_LOGGING_CELL_COUNT_DEFAULT = 1000000;
+	private final static String INDEXER_LOGGING_CELL_COUNT_PROP = "sid.indexer.loggingCellCount";
 
 	public SidConfiguration (String propertiesFileName) throws FileNotFoundException, IOException {
 		this.properties = new Properties();
@@ -106,8 +115,20 @@ public class SidConfiguration {
 		return getIntProperty(INDEXER_INITIAL_CELL_LIST_SIZE_PROP, INDEXER_INITIAL_CELL_LIST_SIZE_DEFAULT);
 	}
 	
-	public long getMapDbSizeIncrement() {
+	public long getIndexerMapDbSizeIncrement() {
 		return getLongProperty(INDEXER_MAPDB_SIZE_INCREMENT_PROP, INDEXER_MAPDB_SIZE_INCREMENT_DEFAULT);
+	}
+	
+	public int getIndexerAsyncWriteQueueSize() {
+		return getIntProperty(INDEXER_ASYNC_WRRITE_QUEUE_SIZE_PROP, INDEXER_ASYNC_WRRITE_QUEUE_SIZE_DEFAULT);
+	}
+	
+	public int getIndexerAsyncWriteFlushDelay() {
+		return getIntProperty(INDEXER_ASYNC_WRITE_FLUSH_DELAY_PROP, INDEXER_ASYNC_WRITE_FLUSH_DELAY_DEFAULT);
+	}
+	
+	public int getIndexerLoggingCellCount() {
+		return getIntProperty(INDEXER_LOGGING_CELL_COUNT_PROP, INDEXER_LOGGING_CELL_COUNT_DEFAULT);
 	}
 	
 	private String getStringProperty (String name, String defaultValue) {

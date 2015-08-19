@@ -81,11 +81,11 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 					transactionDisable().
 					closeOnJvmShutdown().
 					fileMmapEnable().
-					// asyncWriteEnable().
-					// asyncWriteFlushDelay(60000).
-					// asyncWriteQueueSize(100000).
-					allocateStartSize(config.getMapDbSizeIncrement()).
-					allocateIncrement(config.getMapDbSizeIncrement()).
+					asyncWriteEnable().
+					asyncWriteFlushDelay(config.getIndexerAsyncWriteFlushDelay()).
+					asyncWriteQueueSize(config.getIndexerAsyncWriteQueueSize()).
+					allocateStartSize(config.getIndexerMapDbSizeIncrement()).
+					allocateIncrement(config.getIndexerMapDbSizeIncrement()).
 					metricsEnable().
 					make();
 		return db;
@@ -109,6 +109,7 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 		readHeader(dis);
 		
 		int i = 0;
+		int loggingCellCount = config.getIndexerLoggingCellCount();
 		while (true) {
 			if (Thread.interrupted()) {
 				LOG.warn("Indexer Worker has been interrupted and will exit");
@@ -121,7 +122,7 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 			try {
 				Cell cell = Cell.read(dis, Sha256Hmac.MAC_LENGTH);
 				i++;
-				if (i%1000000 == 0) {
+				if (i%loggingCellCount == 0) {
 					LOG.info("Shard: " + this.shardNumber + ". Processing cell# " + String.format("%,d", i));
 				}
 				RawTerm rt = new RawTerm(cell.getTerm());
@@ -141,7 +142,9 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 					}
 				}
 			} catch (IOException e) {
-				dis.close();			} 
+				dis.close();	
+				return;
+			} 
 		}
 	}
 
