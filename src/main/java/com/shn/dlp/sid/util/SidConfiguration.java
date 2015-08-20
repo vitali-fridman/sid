@@ -69,7 +69,7 @@ public class SidConfiguration {
 		InputStream is = this.getClass().getClassLoader().getResourceAsStream(PROPERTIES_FILE);
 		this.properties = new Properties();
 		if (this.properties != null) {
-			this.properties.load(is);
+			this.properties.load(is);  
 		} else {
 			throw new FileNotFoundException("Properties " + PROPERTIES_FILE + "are not present in resources.");
 		}
