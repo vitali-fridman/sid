@@ -145,11 +145,15 @@ public class CryptoFileIndexer {
 		DataInputStream dis = null;
 		try {
 			dis = new DataInputStream(new BufferedInputStream(new FileInputStream(cryptoFileName)));
+			int headerLength = dis.readByte();
 			int formatVersion = dis.readByte();
 			if (formatVersion != config.getCryptoFileFormatVersion()) {
 				LOG.error("Wrong crypto file format version");
 				return -1;
 			}
+			byte[] alg = new byte[config.getCryptoFileHeaderAlgoritmNameLength()];
+			dis.readFully(alg);
+			int termLength = dis.readByte();
 			int numColumns = dis.readInt();
 			int numRows = dis.readByte();
 			int numCells = numColumns*numRows;

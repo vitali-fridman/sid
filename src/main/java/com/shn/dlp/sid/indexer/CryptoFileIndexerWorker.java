@@ -22,6 +22,7 @@ import com.shn.dlp.sid.entries.CellLocationListSerializer;
 import com.shn.dlp.sid.entries.RawTerm;
 import com.shn.dlp.sid.entries.RawTermSerializer;
 import com.shn.dlp.sid.security.Crypter;
+import com.shn.dlp.sid.security.CryptoException;
 import com.shn.dlp.sid.util.MemoryInfo;
 import com.shn.dlp.sid.util.SidConfiguration;
 
@@ -55,7 +56,13 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 			LOG.error(e.getMessage());
 			return false;
 		}
-		HTreeMap<RawTerm, ArrayList<CellLocation>> dbmap = createMap(db);
+		HTreeMap<RawTerm, ArrayList<CellLocation>> dbmap;
+		try {
+			dbmap = createMap(db);
+		} catch (CryptoException e) {
+			LOG.error("Error creating dbmap", e);
+			return false;
+		}
 		try {
 			readData(file, this.numberOfShards, this.shardNumber, db, dbmap);
 		} catch (IOException e) {
@@ -91,11 +98,11 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 		return db;
 	}
 	
-	private  HTreeMap<RawTerm, ArrayList<CellLocation>> createMap(DB db) {
+	private  HTreeMap<RawTerm, ArrayList<CellLocation>> createMap(DB db) throws CryptoException {
 		HTreeMap<RawTerm, ArrayList<CellLocation>> map =
 		db.hashMapCreate(MAP_NAME).
 			valueSerializer(new CellLocationListSerializer()).
-			keySerializer(new RawTermSerializer()).
+			keySerializer(new RawTermSerializer(this.config)).
 			counterEnable().					
 			make();
 		return map;
@@ -106,7 +113,7 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 			DB db, HTreeMap<RawTerm, ArrayList<CellLocation>> dbmap) throws IOException, InterruptedException {
 
 		DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(file), 10000000));
-		readHeader(dis);
+		int termLength = readHeader(dis);
 		
 		int i = 0;
 		int loggingCellCount = config.getIndexerLoggingCellCount();
@@ -120,7 +127,7 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 			}
 			
 			try {
-				Cell cell = Cell.read(dis, Crypter.MAC_LENGTH);
+				Cell cell = Cell.read(dis, termLength);
 				i++;
 				if (i%loggingCellCount == 0) {
 					LOG.info("Shard: " + this.shardNumber + ". Processing cell# " + String.format("%,d", i));
@@ -148,7 +155,13 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 		}
 	}
 
-	private static void readHeader(DataInputStream dis) throws IOException {
-		dis.skip(6);
+	private int readHeader(DataInputStream dis) throws IOException {
+		int headerLength = dis.readByte();
+		int version = dis.readByte();
+		byte[] alg = new byte[this.config.getCryptoFileHeaderAlgoritmNameLength()];
+		dis.readFully(alg);
+		int termLength = dis.readByte();;
+		dis.skip(5);
+		return termLength;
 	}
 }

@@ -23,11 +23,6 @@ public class Cell extends IndexEntry {
         in.readFully(rowBytes);
         final int rownumber = Ints.fromByteArray(rowBytes);
         final byte col = in.readByte();
-        // in.skip(com.shn.dlp.sid.security.Sha256Hmac.MAC_LENGTH);
-        int available = in.available();
-        if (available < com.shn.dlp.sid.security.Crypter.MAC_LENGTH) {
-        	System.out.println("Not enougth bytes available: " + available);
-        }
         in.readFully(term);
         return new Cell(rownumber, col, term);
     }

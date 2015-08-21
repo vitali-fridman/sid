@@ -25,7 +25,7 @@ import com.shn.dlp.sid.util.SidConfiguration;
 public class CensusTestDataFileGenerator {
 
 	public final static String CLEAR_SUFFIX = ".clear";
-	private final static int FORMAT_VERSION = 1;
+	// private final static int FORMAT_VERSION = 1;
 	private final static int BUFFER_SIZE = 1024*1024*100;
 
 	private static final int NUM_LAST_NAMES = 88799;
@@ -187,16 +187,18 @@ public class CensusTestDataFileGenerator {
 	}
 
 	private void writeHeader() throws IOException {
-		this.cryptoWriter.write(32);
-		this.cryptoWriter.write(FORMAT_VERSION);
-		this.cryptoWriter.write(StringUtils.right(config.getCryptoAlgorithmName(), 21).getBytes());
-		this.cryptoWriter.write(intToBytes(this.crypter.getCryptoValueLength()));
+		this.cryptoWriter.write(this.config.getCryptoFileHeaderLength());
+		this.cryptoWriter.write(this.config.getCryptoFileFormatVersion());
+		this.cryptoWriter.write(StringUtils.rightPad(config.getCryptoAlgorithmName(), 
+				this.config.getCryptoFileHeaderAlgoritmNameLength()).getBytes());
+		this.cryptoWriter.write(this.crypter.getCryptoValueLength());
 		this.cryptoWriter.write(intToBytes(this.numRows));
 		this.cryptoWriter.write(this.numColumns);
 
 		if (this.clearWriter != null) {
-			this.clearWriter.write("Format Version: " + FORMAT_VERSION);
+			this.clearWriter.write("Format Version: " + this.config.getCryptoFileFormatVersion());
 			this.clearWriter.newLine();
+			this.clearWriter.write("Crypto algprithm: " + config.getCryptoAlgorithmName());
 			this.clearWriter.write("Columns: " + this.numColumns);
 			this.clearWriter.newLine();
 			this.clearWriter.write("Rows: " + this.numRows);

@@ -145,7 +145,7 @@ public class SidConfiguration {
 		return CRYPTO_FILE_HEADER_LENGTH;
 	}
 	
-	public int geta() {
+	public int getCryptoFileHeaderAlgoritmNameLength() {
 		return CRYPTO_FILE_HEADER_ALGORITM_NAME_LENGTH;
 	}
 	
