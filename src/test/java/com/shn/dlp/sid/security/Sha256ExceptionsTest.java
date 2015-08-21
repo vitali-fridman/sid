@@ -22,7 +22,7 @@ public class Sha256ExceptionsTest {
 	@SuppressWarnings("unchecked")
 	@Test
 	public void cryptoExceptionTest() throws NoSuchAlgorithmException {
-		Sha256Hmac hm = new Sha256Hmac();
+		Crypter hm = new Crypter();
 		PowerMockito.mockStatic(Mac.class);
 		BDDMockito.given(Mac.getInstance("HmacSHA256")).willThrow(InvalidKeyException.class);
 		

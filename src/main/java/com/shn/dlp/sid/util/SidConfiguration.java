@@ -59,6 +59,12 @@ public class SidConfiguration {
 	
 	private final static int INDEXER_LOGGING_CELL_COUNT_DEFAULT = 1000000;
 	private final static String INDEXER_LOGGING_CELL_COUNT_PROP = "sid.indexer.loggingCellCount";
+	
+	private final static String CRYPTO_ALGORITHM_NAME_DEFAULT = "HmacSHA1";
+	private final static String CRYPTO_ALGORITHM_NAME_PROP = "sid.cryptoAlgorithm";
+	
+	private final static int CRYPTO_FILE_HEADER_LENGTH = 32;	
+	private final static int CRYPTO_FILE_HEADER_ALGORITM_NAME_LENGTH = 21;
 
 	public SidConfiguration (String propertiesFileName) throws FileNotFoundException, IOException {
 		this.properties = new Properties();
@@ -129,6 +135,18 @@ public class SidConfiguration {
 	
 	public int getIndexerLoggingCellCount() {
 		return getIntProperty(INDEXER_LOGGING_CELL_COUNT_PROP, INDEXER_LOGGING_CELL_COUNT_DEFAULT);
+	}
+	
+	public String getCryptoAlgorithmName() {
+		return getStringProperty(CRYPTO_ALGORITHM_NAME_PROP, CRYPTO_ALGORITHM_NAME_DEFAULT);  
+	}
+	
+	public int getCryptoFileHeaderLength() {
+		return CRYPTO_FILE_HEADER_LENGTH;
+	}
+	
+	public int geta() {
+		return CRYPTO_FILE_HEADER_ALGORITM_NAME_LENGTH;
 	}
 	
 	private String getStringProperty (String name, String defaultValue) {

@@ -23,7 +23,7 @@ import com.shn.dlp.sid.entries.CellLocation;
 import com.shn.dlp.sid.entries.CellLocationListSerializer;
 import com.shn.dlp.sid.entries.RawTerm;
 import com.shn.dlp.sid.entries.RawTermSerializer;
-import com.shn.dlp.sid.security.Sha256Hmac;
+import com.shn.dlp.sid.security.Crypter;
 
 public class CryptoFileReader {
 
@@ -57,7 +57,7 @@ public class CryptoFileReader {
 		
 		long start=System.nanoTime();
 		
-		File file = new File(cfr.fileName + Sha256Hmac.CRYPRO_FILE_SUFFIX);
+		File file = new File(cfr.fileName + Crypter.CRYPRO_FILE_SUFFIX);
 		// FileUtils.deleteQuietly(new File(cfr.dbDirectoryName));
 		// FileUtils.forceMkdir(new File(cfr.dbDirectoryName));
 		DB db = createDB(cfr.dbDirectoryName, cfr.shardNumber);
@@ -160,7 +160,7 @@ public class CryptoFileReader {
 		int i = 0;
 		while (true) {
 			try {
-				Cell cell = Cell.read(dis, Sha256Hmac.MAC_LENGTH);
+				Cell cell = Cell.read(dis, Crypter.MAC_LENGTH);
 				i++;
 				if (i%100000 == 0) {
 					System.out.format("Processing cell# %,d\n", i);

@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.shn.dlp.sid.security.CryptoException;
+import com.shn.dlp.sid.util.SidConfiguration;
 
 public class GenerateCensusTestData {
 
@@ -23,8 +24,10 @@ public class GenerateCensusTestData {
 	private int numRows;
 	@Option(name="-print",usage="Use if you need file content printed in clear")
 	private boolean writeClearFile;
+	@Option(name="-prop", usage="Properties File")
+	private String propertiesFile;
 	
-	private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());  
+	private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());    
 	
 	public static void main(String[] args) {  
 		GenerateCensusTestData gtd = new GenerateCensusTestData();  
@@ -34,26 +37,35 @@ public class GenerateCensusTestData {
 		} catch (CmdLineException e) {  
 			LOG.error(e.getMessage());   
 			LOG.error(parser.printExample(OptionHandlerFilter.ALL));
-			return;
+			System.exit(-1);
 		}
 		
 		if (gtd.numColumns < 3) {
 			LOG.error("Number of columns must be at least 3.");
-			return;
+			System.exit(-1);
 		}
 		
 		if (gtd.numRows < 100000) {
 			LOG.error("Number of rows must be at least 100K.");
-			return;
+			System.exit(-1);
 		}
 		
-		CensusTestDataFileGenerator generator = new CensusTestDataFileGenerator(gtd.fileName, gtd.numColumns, 
+		SidConfiguration config = null;
+		try {
+			config = (gtd.propertiesFile != null ? 
+					new SidConfiguration(gtd.propertiesFile) : new SidConfiguration());
+		} catch (IOException e) {
+			LOG.error("Unable to read properties file.", e);
+			System.exit(-1);
+		}
+		
+		CensusTestDataFileGenerator generator = new CensusTestDataFileGenerator(config, gtd.fileName, gtd.numColumns, 
 				gtd.numRows, gtd.writeClearFile);
 		try {
 			generator.generateFile();
 		} catch (IOException | CryptoException e) {
 			LOG.error("Error generating file: " + e.getMessage());
-			return;
+			System.exit(-1);
 		}
 		
 		LOG.info("Data file generated.");

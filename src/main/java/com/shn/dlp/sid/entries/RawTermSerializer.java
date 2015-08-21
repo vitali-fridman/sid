@@ -6,7 +6,7 @@ import java.io.IOException;
 
 import org.mapdb.Serializer;
 
-import com.shn.dlp.sid.security.Sha256Hmac;
+import com.shn.dlp.sid.security.Crypter;
 
 public class RawTermSerializer extends Serializer<RawTerm> {
 
@@ -17,14 +17,14 @@ public class RawTermSerializer extends Serializer<RawTerm> {
 
 	@Override
 	public RawTerm deserialize(DataInput in, int available) throws IOException {
-		byte[] value = new byte[Sha256Hmac.MAC_LENGTH];
+		byte[] value = new byte[Crypter.MAC_LENGTH];
 		in.readFully(value);
 		return new RawTerm(value);
 	}
 	
 	@Override
 	public int fixedSize() {
-		return Sha256Hmac.MAC_LENGTH;
+		return Crypter.MAC_LENGTH;
 	}
 
 	@Override

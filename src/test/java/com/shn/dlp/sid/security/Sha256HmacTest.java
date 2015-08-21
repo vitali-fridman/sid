@@ -9,10 +9,10 @@ public class Sha256HmacTest {
 
 	@Test
 	public void sha1HmacLenghtTest() {
-		Sha256Hmac hm = new Sha256Hmac();
+		Crypter hm = new Crypter();
 		try {
 			byte[] digest = hm.computeDigest("does not matter");
-			assertEquals(Sha256Hmac.MAC_LENGTH, digest.length);
+			assertEquals(Crypter.MAC_LENGTH, digest.length);
 		} catch (CryptoException e) {
 			fail("CryptoException" + e.getMessage());
 		}
@@ -20,10 +20,10 @@ public class Sha256HmacTest {
 	
 	@Test
 	public void sha1HmacLengthTestWithKey() {
-		Sha256Hmac hm = new Sha256Hmac("abcdef".getBytes());
+		Crypter hm = new Crypter("abcdef".getBytes());
 		try {
 			byte[] digest = hm.computeDigest("does not matter");
-			assertEquals(Sha256Hmac.MAC_LENGTH, digest.length);
+			assertEquals(Crypter.MAC_LENGTH, digest.length);
 		} catch (CryptoException e) {
 			fail("CryptoException" + e.getMessage());
 		}

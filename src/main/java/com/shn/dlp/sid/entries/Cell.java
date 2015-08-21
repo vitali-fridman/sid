@@ -25,7 +25,7 @@ public class Cell extends IndexEntry {
         final byte col = in.readByte();
         // in.skip(com.shn.dlp.sid.security.Sha256Hmac.MAC_LENGTH);
         int available = in.available();
-        if (available < com.shn.dlp.sid.security.Sha256Hmac.MAC_LENGTH) {
+        if (available < com.shn.dlp.sid.security.Crypter.MAC_LENGTH) {
         	System.out.println("Not enougth bytes available: " + available);
         }
         in.readFully(term);

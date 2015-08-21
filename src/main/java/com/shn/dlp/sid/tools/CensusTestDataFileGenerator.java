@@ -12,13 +12,15 @@ import java.lang.invoke.MethodHandles;
 import java.util.Random;
 import java.util.Scanner;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.log4j.BasicConfigurator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.primitives.Ints;
 import com.shn.dlp.sid.security.CryptoException;
-import com.shn.dlp.sid.security.Sha256Hmac;
+import com.shn.dlp.sid.security.Crypter;
+import com.shn.dlp.sid.util.SidConfiguration;
 
 public class CensusTestDataFileGenerator {
 
@@ -32,7 +34,7 @@ public class CensusTestDataFileGenerator {
 	private static final String LAST_NAMES_FILE = "dist.all.last";	
 	private static final String FEMALE_FIRST_NAMES_FILE = "dist.female.first";
 	private static final String MALE_FIRST_NAMES_FILE = "dist.male.first";
-	private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
+	private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());  
 
 	private final String fileName;
 	private final int numColumns;
@@ -40,14 +42,16 @@ public class CensusTestDataFileGenerator {
 	private final boolean writeClearFile;
 	private OutputStream cryptoWriter;
 	private BufferedWriter clearWriter;
-	private  Sha256Hmac hmac;
+	private Crypter crypter;
 	private String[] lastNamesSampling;
 	private String[] firstNamesSampling;
 	private CensusEntry[] lastNames;
-	private CensusEntry[] femaleFirstNames;
+	private CensusEntry[] femaleFirstNames;  
 	private CensusEntry[] maleFirstNames;
+	private final SidConfiguration config;
 
-	public CensusTestDataFileGenerator(String fileName, int numColumns, int numRows, boolean writeClearFile) {
+	public CensusTestDataFileGenerator(SidConfiguration config, String fileName, int numColumns, int numRows, boolean writeClearFile) {
+		this.config = config;
 		this.fileName = fileName;
 		this.numColumns = numColumns;
 		this.numRows = numRows;
@@ -57,11 +61,11 @@ public class CensusTestDataFileGenerator {
 	}
 
 	public void generateFile() throws IOException, CryptoException {
-		this.hmac = new Sha256Hmac();
-		loadCensusData();
+		this.crypter = new Crypter(this.config);  
+ 		loadCensusData();
 		fillAllSamplingData();
 
-		this.cryptoWriter = new BufferedOutputStream(new FileOutputStream(new File(this.fileName + Sha256Hmac.CRYPRO_FILE_SUFFIX)), BUFFER_SIZE);
+		this.cryptoWriter = new BufferedOutputStream(new FileOutputStream(new File(this.fileName + Crypter.CRYPRO_FILE_SUFFIX)), BUFFER_SIZE);
 		if (writeClearFile) {
 			clearWriter = new BufferedWriter(new FileWriter(new File(this.fileName + CLEAR_SUFFIX)));
 		} else {
@@ -163,7 +167,7 @@ public class CensusTestDataFileGenerator {
 					globalCounter++;
 				}
 
-				cryptoValue = this.hmac.computeDigest(clearValue);
+				cryptoValue = this.crypter.computeDigest(clearValue);
 				this.cryptoWriter.write(intToBytes(row));
 				this.cryptoWriter.write(col);
 				this.cryptoWriter.write(cryptoValue);
@@ -183,7 +187,10 @@ public class CensusTestDataFileGenerator {
 	}
 
 	private void writeHeader() throws IOException {
+		this.cryptoWriter.write(32);
 		this.cryptoWriter.write(FORMAT_VERSION);
+		this.cryptoWriter.write(StringUtils.right(config.getCryptoAlgorithmName(), 21).getBytes());
+		this.cryptoWriter.write(intToBytes(this.crypter.getCryptoValueLength()));
 		this.cryptoWriter.write(intToBytes(this.numRows));
 		this.cryptoWriter.write(this.numColumns);
 

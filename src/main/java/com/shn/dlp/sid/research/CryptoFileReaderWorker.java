@@ -20,7 +20,7 @@ import com.shn.dlp.sid.entries.CellLocation;
 import com.shn.dlp.sid.entries.CellLocationListSerializer;
 import com.shn.dlp.sid.entries.RawTerm;
 import com.shn.dlp.sid.entries.RawTermSerializer;
-import com.shn.dlp.sid.security.Sha256Hmac;
+import com.shn.dlp.sid.security.Crypter;
 import com.shn.dlp.sid.util.MemoryInfo;
 
 public class CryptoFileReaderWorker implements Runnable {
@@ -46,7 +46,7 @@ public class CryptoFileReaderWorker implements Runnable {
 
 	@Override
 	public void run() {
-		File file = new File(this.fileName + Sha256Hmac.CRYPRO_FILE_SUFFIX);
+		File file = new File(this.fileName + Crypter.CRYPRO_FILE_SUFFIX);
 		DB db = null;
 		try {
 			db = createDB(this.dbDirectoryName, this.shardNumber);
@@ -108,7 +108,7 @@ public class CryptoFileReaderWorker implements Runnable {
 		int i = 0;
 		while (true) {
 			try {
-				Cell cell = Cell.read(dis, Sha256Hmac.MAC_LENGTH);
+				Cell cell = Cell.read(dis, Crypter.MAC_LENGTH);
 				i++;
 				if (i%5000000 == 0) {
 					LOG.info("Shard: " + this.shardNumber + ". Processing cell# " + String.format("%,d", i));

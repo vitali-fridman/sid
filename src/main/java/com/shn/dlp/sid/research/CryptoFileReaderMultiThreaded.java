@@ -19,7 +19,7 @@ import org.kohsuke.args4j.OptionHandlerFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.shn.dlp.sid.security.Sha256Hmac;
+import com.shn.dlp.sid.security.Crypter;
 import com.shn.dlp.sid.util.PeriodicGarbageCollector;
 
 public class CryptoFileReaderMultiThreaded {
@@ -73,7 +73,7 @@ public class CryptoFileReaderMultiThreaded {
 	
 	private static int calculateNumberOfShards(String cryptoFileName) {
 		try {
-			DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(cryptoFileName + Sha256Hmac.CRYPRO_FILE_SUFFIX)));
+			DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(cryptoFileName + Crypter.CRYPRO_FILE_SUFFIX)));
 			int formatVersion = dis.readByte();
 			int numColumns = dis.readInt();
 			int numRows = dis.readByte();

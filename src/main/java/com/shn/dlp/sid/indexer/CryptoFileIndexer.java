@@ -29,7 +29,7 @@ import org.kohsuke.args4j.OptionHandlerFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.shn.dlp.sid.security.Sha256Hmac;
+import com.shn.dlp.sid.security.Crypter;
 import com.shn.dlp.sid.util.PeriodicGarbageCollector;
 import com.shn.dlp.sid.util.SidConfiguration;
 
@@ -64,7 +64,7 @@ public class CryptoFileIndexer {
 		}
 
 		String fileToIndex = config.getDataFilesDrictory() + File.separator + cfr.fileName 
-				+ Sha256Hmac.CRYPRO_FILE_SUFFIX;
+				+ Crypter.CRYPRO_FILE_SUFFIX;
 		if (!Files.exists(Paths.get(fileToIndex))) {
 			LOG.error("Crypto File does not exist");
 			System.exit(-1);

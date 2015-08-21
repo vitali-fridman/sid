@@ -21,7 +21,7 @@ import com.shn.dlp.sid.entries.CellLocation;
 import com.shn.dlp.sid.entries.CellLocationListSerializer;
 import com.shn.dlp.sid.entries.RawTerm;
 import com.shn.dlp.sid.entries.RawTermSerializer;
-import com.shn.dlp.sid.security.Sha256Hmac;
+import com.shn.dlp.sid.security.Crypter;
 import com.shn.dlp.sid.util.MemoryInfo;
 import com.shn.dlp.sid.util.SidConfiguration;
 
@@ -79,7 +79,7 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 		
 			DB db = DBMaker.fileDB(dbFile).
 					transactionDisable().
-					closeOnJvmShutdown().
+					closeOnJvmShutdown().  
 					fileMmapEnable().
 					asyncWriteEnable().
 					asyncWriteFlushDelay(config.getIndexerAsyncWriteFlushDelay()).
@@ -120,7 +120,7 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 			}
 			
 			try {
-				Cell cell = Cell.read(dis, Sha256Hmac.MAC_LENGTH);
+				Cell cell = Cell.read(dis, Crypter.MAC_LENGTH);
 				i++;
 				if (i%loggingCellCount == 0) {
 					LOG.info("Shard: " + this.shardNumber + ". Processing cell# " + String.format("%,d", i));

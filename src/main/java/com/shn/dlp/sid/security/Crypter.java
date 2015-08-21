@@ -7,29 +7,42 @@ import javax.crypto.Mac;
 import javax.crypto.ShortBufferException;
 import javax.crypto.spec.SecretKeySpec;
 
-public final class Sha256Hmac {
+import com.shn.dlp.sid.util.SidConfiguration;
+
+public final class Crypter {
 	public static final String CRYPRO_FILE_SUFFIX = ".crypto";
-	private static final String MAC_ALGORITHM_NAME = "HmacSHA256";
+	// private static final String MAC_ALGORITHM_NAME = "HmacSHA256";
 	private static final byte[] BUILTIN_KEY = "56778990sdsfnbvnf87JHGSDFmjk)(%ks".getBytes(); 
-	public static final int MAC_LENGTH = 32;
+	// public static final int MAC_LENGTH = 32;
 	private final ThreadLocal<Mac> _digester = new ThreadLocal<Mac>();
 	private final SecretKeySpec _digestInitKey;
+	private final SidConfiguration config;
+	private final int cryptoValueLength;
 	  
-	  public Sha256Hmac(byte[] keyBytes) //NOSONAR. As SecureKeySpec immediately makes copy of the array it make no sense to do it here
+	  public Crypter(SidConfiguration config, byte[] keyBytes) throws CryptoException //NOSONAR. As SecureKeySpec immediately makes copy of the array it make no sense to do it here
 	  {
-	    this._digestInitKey = new SecretKeySpec(keyBytes, MAC_ALGORITHM_NAME);
+		this.config = config;
+		try {
+			this.cryptoValueLength = Mac.getInstance(config.getCryptoAlgorithmName()).getMacLength();
+		} catch (NoSuchAlgorithmException e) {
+			throw new CryptoException(e);
+		}
+		if (keyBytes == null) {
+			keyBytes = BUILTIN_KEY;
+		}
+	    this._digestInitKey = new SecretKeySpec(keyBytes, config.getCryptoAlgorithmName());
 	  }
 	  
-	  public Sha256Hmac() {
-		  this._digestInitKey = new SecretKeySpec(BUILTIN_KEY, MAC_ALGORITHM_NAME);
+	  public Crypter(SidConfiguration config) throws CryptoException {
+		  this(config, null);
 	  }
 	  
 	  private Mac initializeDigester()
 	    throws CryptoException
 	  {
-	    try
+	    try 
 	    {
-	      Mac hmacDigester = Mac.getInstance(MAC_ALGORITHM_NAME);
+	      Mac hmacDigester = Mac.getInstance(config.getCryptoAlgorithmName());
 	      hmacDigester.init(this._digestInitKey); 
 	      return hmacDigester;
 	    }
@@ -41,6 +54,10 @@ public final class Sha256Hmac {
 	    {
 	      throw new CryptoException(e);
 	    }
+	  }
+	  
+	  public int getCryptoValueLength() {
+		  return this.cryptoValueLength;
 	  }
 	  
 	  public byte[] computeDigest(String toBeSigned)
