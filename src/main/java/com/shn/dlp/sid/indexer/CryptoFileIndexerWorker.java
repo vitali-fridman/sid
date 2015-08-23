@@ -96,18 +96,29 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 		return true; 
 	}
 	
-	private void moveCommonTerms() {
+	private void moveCommonTerms() throws InterruptedException {
 		int commonalityThreashold = this.config.getCommonalityThreashold();
+		int i=0;
 		for (Entry<RawTerm, ArrayList<CellLocation>> entry : this.unCommonTermsMap.entrySet()) {
+			
+			if (Thread.interrupted()) {
+				LOG.warn("Indexer Worker has been interrupted and will exit");
+					throw new InterruptedException();
+			}
+			
 			RawTerm term = entry.getKey();
 			ArrayList<CellLocation> locations = entry.getValue();
 			if (locations.size() > commonalityThreashold) {
+				if (i%1000 == 0) {
+					LOG.info("Shard# " + this.shardNumber + " moving common term# " + i);
+				}
 				int mask = 0;
 				for (CellLocation location : locations) {
 					mask = mask | (1 << location.getColumn());
 				}
 				this.allCommonTermsMap.put(entry.getKey(), mask);
 				this.unCommonTermsMap.remove(term);
+				i++;
 			}
 		}
 	}
