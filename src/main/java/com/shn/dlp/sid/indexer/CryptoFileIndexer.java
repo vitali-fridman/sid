@@ -145,7 +145,7 @@ public class CryptoFileIndexer {
 		DataInputStream dis = null;
 		try {
 			dis = new DataInputStream(new BufferedInputStream(new FileInputStream(cryptoFileName)));
-			int headerLength = dis.readByte();
+			int headerLength = dis.readByte(); // ignore
 			int formatVersion = dis.readByte();
 			if (formatVersion != config.getCryptoFileFormatVersion()) {
 				LOG.error("Wrong crypto file format version");
@@ -153,9 +153,18 @@ public class CryptoFileIndexer {
 			}
 			byte[] alg = new byte[config.getCryptoFileHeaderAlgoritmNameLength()];
 			dis.readFully(alg);
-			int termLength = dis.readByte();
-			int numColumns = dis.readInt();
-			int numRows = dis.readByte();
+			int termLength = dis.readByte(); // ignore
+			int numRows = dis.readInt();
+			int numColumns = dis.readByte();
+			if (numColumns < 1 || numColumns > 30) {
+				LOG.error("Number of columns is " + numColumns + " but it must be between 1 and 30");
+				return -1;
+			}
+			long numbCells = (long)numColumns * (long)numRows;
+			if ( numbCells > 2000000000) {
+				LOG.error("Number of cells is " + numbCells + " but maximum allowed is 2 Billion");
+				return -1;
+			}
 			int numCells = numColumns*numRows;
 			int numShards = (int)Math.ceil(numCells / (double) config.getIndexerOptimalCellsPerShard());
 			return numShards;

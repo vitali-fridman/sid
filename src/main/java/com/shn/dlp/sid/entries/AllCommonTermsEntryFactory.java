@@ -6,7 +6,7 @@ import java.io.IOException;
 import com.shn.dlp.sid.util.IndexSize;
 
 
-public class AllCommonTermsIndexEntryFactory implements IndexEntryFactory {
+public class AllCommonTermsEntryFactory implements IndexEntryFactory {
 
 	@Override
     public int estimateMemory(final int termSize, final int spineLength, final int entryCount) {
@@ -18,7 +18,7 @@ public class AllCommonTermsIndexEntryFactory implements IndexEntryFactory {
         final byte[] term = new byte[termLength];
         final int colMask = in.readInt();
         in.readFully(term);
-        return new AllCommonTermsIndexEntry(colMask, term);
+        return new AllCommonTermsEntry(colMask, term);
     }
 
 }

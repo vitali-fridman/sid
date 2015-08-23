@@ -40,8 +40,8 @@ public class GenerateCensusTestData {
 			System.exit(-1);
 		}
 		
-		if (gtd.numColumns < 3) {
-			LOG.error("Number of columns must be at least 3.");
+		if (gtd.numColumns < 3 || gtd.numColumns > 30) {
+			LOG.error("Number of columns must be at least 3  and less than 31.");
 			System.exit(-1);
 		}
 		

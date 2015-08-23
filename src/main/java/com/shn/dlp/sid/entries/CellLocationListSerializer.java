@@ -14,7 +14,7 @@ public class CellLocationListSerializer extends Serializer<ArrayList<CellLocatio
 		out.writeInt(list.size());
 		for (CellLocation location : list) {
 			out.writeInt(location.getRow());
-			out.writeByte(location.getColumn());;
+			out.writeByte(location.getColumn());
 		}
 		
 	}

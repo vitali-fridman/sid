@@ -65,7 +65,11 @@ public class SidConfiguration {
 	
 	private final static int CRYPTO_FILE_HEADER_LENGTH = 32;	
 	private final static int CRYPTO_FILE_HEADER_ALGORITM_NAME_LENGTH = 21;
-
+	
+	private final static int TERM_COMMONALITY_THREASHOLD_DEFAULT = 100;
+	private final static String TERM_COMMONALITY_THREASHOLD_PROP = "sid.termCommonalityThreashold";
+	
+	
 	public SidConfiguration (String propertiesFileName) throws FileNotFoundException, IOException {
 		this.properties = new Properties();
 		this.properties.load(new FileInputStream(propertiesFileName));
@@ -147,6 +151,10 @@ public class SidConfiguration {
 	
 	public int getCryptoFileHeaderAlgoritmNameLength() {
 		return CRYPTO_FILE_HEADER_ALGORITM_NAME_LENGTH;
+	}
+	
+	public int getCommonalityThreashold() {
+		return getIntProperty(TERM_COMMONALITY_THREASHOLD_PROP, TERM_COMMONALITY_THREASHOLD_DEFAULT);
 	}
 	
 	private String getStringProperty (String name, String defaultValue) {

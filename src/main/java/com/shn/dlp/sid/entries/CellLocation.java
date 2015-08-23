@@ -13,6 +13,8 @@ public class CellLocation implements Serializable, Comparable<CellLocation>{
 	private final int row;
 	private final byte column;
 	
+	public static final CellLocation EMPTY_CELL_LOCATION = new CellLocation(-1, 32);
+	
 	public CellLocation (int row, int column) {
 		this.row = row;
 		this.column = (byte) column;

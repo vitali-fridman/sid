@@ -7,15 +7,19 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
+import java.util.Map.Entry;
 import java.util.concurrent.Callable;
 
 import org.apache.commons.io.FileUtils;
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
 import org.mapdb.HTreeMap;
+import org.mapdb.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.shn.dlp.sid.entries.AllCommonTermsEntry;
+import com.shn.dlp.sid.entries.AllCommonTermsSerializer;
 import com.shn.dlp.sid.entries.Cell;
 import com.shn.dlp.sid.entries.CellLocation;
 import com.shn.dlp.sid.entries.CellLocationListSerializer;
@@ -28,14 +32,22 @@ import com.shn.dlp.sid.util.SidConfiguration;
 
 public class CryptoFileIndexerWorker implements Callable<Boolean> {
 
-	public final static String MAP_NAME = "CellMap";
-	public final static String DB_NAME = "SidDmap";
+	
 	private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());  
 	
 	private SidConfiguration config;
 	private final String cryptoFileName;
 	private final int numberOfShards;
 	private final int shardNumber;
+	private final static String UNCOMMON_TERMS_MAP_NAME = "UncommonTermsMap";
+	private final static String UNCOMMON_TERMS_DB_NAME = "UncommonTermsDB";
+	private final static String ALL_COMMON_TERMS_MAP_NAME = "AllCommonTermsMap";
+	private final static String ALL_COMMON_TERMS_DB_NAME = "AllConmmonTermsDB";
+	private DB uncommonTermsDB;
+	private HTreeMap<RawTerm, ArrayList<CellLocation>> unCommonTermsMap;
+	private DB allCommonTermsDB;
+	private HTreeMap<RawTerm, Integer> allCommonTermsMap;
+	
 	
 	public CryptoFileIndexerWorker(SidConfiguration config, String fileName, int numberOfShards, int shardNumber) {
 		this.config = config;
@@ -48,23 +60,26 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 	public Boolean call() {
 		
 		File file = new File(this.cryptoFileName);
-		DB db = null;
+		this.uncommonTermsDB = null;
 		try {
-			db = createDB(this.config.getIndexerTempDirectory(), this.shardNumber);
+			createDB(this.config.getIndexerTempDirectory(), this.shardNumber);
 		} catch (IOException e) {
 			LOG.error("Error creating db for shard# " + this.shardNumber); 
 			LOG.error(e.getMessage());
 			return false;
 		}
-		HTreeMap<RawTerm, ArrayList<CellLocation>> dbmap;
+		
 		try {
-			dbmap = createMap(db);
+			createUncommonTermsMap();
+			createAllCommonTermsMap();
 		} catch (CryptoException e) {
 			LOG.error("Error creating dbmap", e);
 			return false;
 		}
 		try {
-			readData(file, this.numberOfShards, this.shardNumber, db, dbmap);
+			readCryptoData(file, this.numberOfShards, this.shardNumber);
+			moveCommonTerms();
+			LOG.info("For shard# " + this.shardNumber + " " + "found " + this.allCommonTermsMap.size() + " common terms");
 		} catch (IOException e) {
 			LOG.error("Error creating index for shard# " + this.shardNumber);
 			LOG.error(e.getMessage());
@@ -73,18 +88,38 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 			return false;
 		}
 		
-		db.commit();
-		db.close();
+		this.uncommonTermsDB.commit();
+		this.uncommonTermsDB.close();
+		this.allCommonTermsDB.commit();
+		this.allCommonTermsDB.close();
 		
-		return true;
+		return true; 
 	}
 	
-	private  DB createDB(String dbDirectoryName, int shardNumber) throws IOException {
+	private void moveCommonTerms() {
+		int commonalityThreashold = this.config.getCommonalityThreashold();
+		for (Entry<RawTerm, ArrayList<CellLocation>> entry : this.unCommonTermsMap.entrySet()) {
+			RawTerm term = entry.getKey();
+			ArrayList<CellLocation> locations = entry.getValue();
+			if (locations.size() > commonalityThreashold) {
+				int mask = 0;
+				for (CellLocation location : locations) {
+					mask = mask | (1 << location.getColumn());
+				}
+				this.allCommonTermsMap.put(entry.getKey(), mask);
+				this.unCommonTermsMap.remove(term);
+			}
+		}
+	}
+	
+	private  void createDB(String dbDirectoryName, int shardNumber) throws IOException {
 		
-		File dbFile = new File(dbDirectoryName + "/" + DB_NAME + "." + shardNumber);
-		FileUtils.deleteQuietly(dbFile);
+		File commonTermsDBfile = new File(dbDirectoryName + "/" + UNCOMMON_TERMS_DB_NAME + "." + shardNumber);
+		FileUtils.deleteQuietly(commonTermsDBfile);
+		File allCommonTermsDBfile = new File(dbDirectoryName + "/" + ALL_COMMON_TERMS_DB_NAME + "." + shardNumber);
+		FileUtils.deleteQuietly(allCommonTermsDBfile);
 		
-			DB db = DBMaker.fileDB(dbFile).
+			this.uncommonTermsDB = DBMaker.fileDB(commonTermsDBfile).
 					transactionDisable().
 					closeOnJvmShutdown().  
 					fileMmapEnable().
@@ -95,22 +130,39 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 					allocateIncrement(config.getIndexerMapDbSizeIncrement()).
 					metricsEnable().
 					make();
-		return db;
+			
+			this.allCommonTermsDB = DBMaker.fileDB(allCommonTermsDBfile).
+					transactionDisable().
+					closeOnJvmShutdown().  
+					fileMmapEnable().
+					asyncWriteEnable().
+					asyncWriteFlushDelay(config.getIndexerAsyncWriteFlushDelay()).
+					asyncWriteQueueSize(config.getIndexerAsyncWriteQueueSize()).
+					allocateStartSize(config.getIndexerMapDbSizeIncrement()).
+					allocateIncrement(config.getIndexerMapDbSizeIncrement()).
+					metricsEnable().
+					make();
 	}
 	
-	private  HTreeMap<RawTerm, ArrayList<CellLocation>> createMap(DB db) throws CryptoException {
-		HTreeMap<RawTerm, ArrayList<CellLocation>> map =
-		db.hashMapCreate(MAP_NAME).
+	private void  createUncommonTermsMap() throws CryptoException {
+		this.unCommonTermsMap =
+		this.uncommonTermsDB.hashMapCreate(UNCOMMON_TERMS_MAP_NAME).
 			valueSerializer(new CellLocationListSerializer()).
 			keySerializer(new RawTermSerializer(this.config)).
 			counterEnable().					
-			make();
-		return map;
-		
+			make();		
+	}
+	
+	private void  createAllCommonTermsMap() throws CryptoException {
+		this.allCommonTermsMap =
+		this.allCommonTermsDB.hashMapCreate(ALL_COMMON_TERMS_MAP_NAME).
+			valueSerializer(Serializer.INTEGER).
+			keySerializer(new RawTermSerializer(this.config)).
+			counterEnable().					
+			make();		
 	}
 
-	private  void readData(File file, int numberOfShards, int shardNumber,
-			DB db, HTreeMap<RawTerm, ArrayList<CellLocation>> dbmap) throws IOException, InterruptedException {
+	private  void readCryptoData(File file, int numberOfShards, int shardNumber) throws IOException, InterruptedException {
 
 		DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(file), 10000000));
 		int termLength = readHeader(dis);
@@ -138,14 +190,14 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 				int shardIndex = positiveHash / (Integer.MAX_VALUE / numberOfShards);
 				if (shardIndex == shardNumber) {
 					CellLocation cellLocation = new CellLocation(cell.getRow(), cell.getColumn());
-					ArrayList<CellLocation> list = dbmap.get(rt);
+					ArrayList<CellLocation> list = this.unCommonTermsMap.get(rt);
 					if (list == null) {
 						ArrayList<CellLocation> newList = new ArrayList<CellLocation>(config.getIndexerInitialCellListSize());
 						newList.add(cellLocation);
-						dbmap.put(rt, newList);
+						this.unCommonTermsMap.put(rt, newList);
 					} else {
 						list.add(cellLocation);
-						dbmap.put(rt, list);
+						this.unCommonTermsMap.put(rt, list);
 					}
 				}
 			} catch (IOException e) {
@@ -156,8 +208,8 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 	}
 
 	private int readHeader(DataInputStream dis) throws IOException {
-		int headerLength = dis.readByte();
-		int version = dis.readByte();
+		int headerLength = dis.readByte(); // unused
+		int version = dis.readByte();	   // unused
 		byte[] alg = new byte[this.config.getCryptoFileHeaderAlgoritmNameLength()];
 		dis.readFully(alg);
 		int termLength = dis.readByte();;
