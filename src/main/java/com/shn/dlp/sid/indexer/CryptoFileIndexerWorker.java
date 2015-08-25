@@ -180,6 +180,7 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 
 		DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(file), 10000000));
 		int termLength = readHeader(dis);
+		int initialCellListSize = config.getIndexerInitialCellListSize();
 		
 		int i = 0;
 		int loggingCellCount = config.getIndexerLoggingCellCount();
@@ -207,7 +208,7 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 					ArrayList<CellRowAndColMask> list = this.unCommonTermsMap.get(rt);
 					if (list == null) {
 						ArrayList<CellRowAndColMask> newList = 
-								new ArrayList<CellRowAndColMask>(config.getIndexerInitialCellListSize());
+								new ArrayList<CellRowAndColMask>(initialCellListSize);
 						newList.add(newEntry);
 						this.unCommonTermsMap.put(rt, newList);
 					} else {
@@ -216,9 +217,8 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 							CellRowAndColMask existngEntry = list.get(index);
 							existngEntry.addToMask(cell.getColumn());
 						} else {
-							list.add(newEntry);
-							Collections.sort(list);
-						}
+							list.add(-index - 1, newEntry);
+						}		
 						this.unCommonTermsMap.put(rt, list);
 					}
 				}

@@ -167,7 +167,11 @@ public class CryptoFileIndexer {
 			}
 			int numCells = numColumns*numRows;
 			int numShards = (int)Math.ceil(numCells / (double) config.getIndexerOptimalCellsPerShard());
-			return numShards;
+			if (config.getIndexerNumThreads() > numShards) {
+				return config.getIndexerNumThreads();
+			} else {
+			 return numShards;
+			}
 
 		} catch (FileNotFoundException e) {
 			LOG.error("Crypto File: " + cryptoFileName + " not found");
