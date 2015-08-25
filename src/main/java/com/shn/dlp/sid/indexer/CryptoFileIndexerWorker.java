@@ -19,18 +19,12 @@ import org.mapdb.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.shn.dlp.sid.entries.AllCommonTermsEntry;
-import com.shn.dlp.sid.entries.AllCommonTermsSerializer;
 import com.shn.dlp.sid.entries.Cell;
-import com.shn.dlp.sid.entries.CellLocation;
-import com.shn.dlp.sid.entries.CellLocationListSerializer;
 import com.shn.dlp.sid.entries.CellRowAndColMask;
 import com.shn.dlp.sid.entries.CellRowAndColMaskListSerializer;
 import com.shn.dlp.sid.entries.RawTerm;
 import com.shn.dlp.sid.entries.RawTermSerializer;
-import com.shn.dlp.sid.security.Crypter;
 import com.shn.dlp.sid.security.CryptoException;
-import com.shn.dlp.sid.util.MemoryInfo;
 import com.shn.dlp.sid.util.SidConfiguration;
 
 public class CryptoFileIndexerWorker implements Callable<Boolean> {
