@@ -7,6 +7,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Map.Entry;
 import java.util.concurrent.Callable;
 
@@ -23,6 +24,8 @@ import com.shn.dlp.sid.entries.AllCommonTermsSerializer;
 import com.shn.dlp.sid.entries.Cell;
 import com.shn.dlp.sid.entries.CellLocation;
 import com.shn.dlp.sid.entries.CellLocationListSerializer;
+import com.shn.dlp.sid.entries.CellRowAndColMask;
+import com.shn.dlp.sid.entries.CellRowAndColMaskListSerializer;
 import com.shn.dlp.sid.entries.RawTerm;
 import com.shn.dlp.sid.entries.RawTermSerializer;
 import com.shn.dlp.sid.security.Crypter;
@@ -44,7 +47,7 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 	private final static String ALL_COMMON_TERMS_MAP_NAME = "AllCommonTermsMap";
 	private final static String ALL_COMMON_TERMS_DB_NAME = "AllConmmonTermsDB";
 	private DB uncommonTermsDB;
-	private HTreeMap<RawTerm, ArrayList<CellLocation>> unCommonTermsMap;
+	private HTreeMap<RawTerm, ArrayList<CellRowAndColMask>> unCommonTermsMap;
 	private DB allCommonTermsDB;
 	private HTreeMap<RawTerm, Integer> allCommonTermsMap;
 	
@@ -99,7 +102,7 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 	private void moveCommonTerms() throws InterruptedException {
 		int commonalityThreashold = this.config.getCommonalityThreashold();
 		int i=0;
-		for (Entry<RawTerm, ArrayList<CellLocation>> entry : this.unCommonTermsMap.entrySet()) {
+		for (Entry<RawTerm, ArrayList<CellRowAndColMask>> entry : this.unCommonTermsMap.entrySet()) {
 			
 			if (Thread.interrupted()) {
 				LOG.warn("Indexer Worker has been interrupted and will exit");
@@ -107,16 +110,16 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 			}
 			
 			RawTerm term = entry.getKey();
-			ArrayList<CellLocation> locations = entry.getValue();
+			ArrayList<CellRowAndColMask> locations = entry.getValue();
 			if (locations.size() > commonalityThreashold) {
 				if (i%1000 == 0) {
 					LOG.info("Shard# " + this.shardNumber + " moving common term# " + i);
 				}
-				int mask = 0;
-				for (CellLocation location : locations) {
-					mask = mask | (1 << location.getColumn());
+				int combinedMask = 0;
+				for (CellRowAndColMask location : locations) {
+					combinedMask = combinedMask | (1 << location.getMask());
 				}
-				this.allCommonTermsMap.put(entry.getKey(), mask);
+				this.allCommonTermsMap.put(entry.getKey(), combinedMask);
 				this.unCommonTermsMap.remove(term);
 				i++;
 			}
@@ -158,7 +161,7 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 	private void  createUncommonTermsMap() throws CryptoException {
 		this.unCommonTermsMap =
 		this.uncommonTermsDB.hashMapCreate(UNCOMMON_TERMS_MAP_NAME).
-			valueSerializer(new CellLocationListSerializer()).
+			valueSerializer(new CellRowAndColMaskListSerializer()).
 			keySerializer(new RawTermSerializer(this.config)).
 			counterEnable().					
 			make();		
@@ -200,14 +203,22 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 				int positiveHash = (hash <0 ? -hash : hash);
 				int shardIndex = positiveHash / (Integer.MAX_VALUE / numberOfShards);
 				if (shardIndex == shardNumber) {
-					CellLocation cellLocation = new CellLocation(cell.getRow(), cell.getColumn());
-					ArrayList<CellLocation> list = this.unCommonTermsMap.get(rt);
+					CellRowAndColMask newEntry = new CellRowAndColMask(cell.getRow(), cell.getColumn());
+					ArrayList<CellRowAndColMask> list = this.unCommonTermsMap.get(rt);
 					if (list == null) {
-						ArrayList<CellLocation> newList = new ArrayList<CellLocation>(config.getIndexerInitialCellListSize());
-						newList.add(cellLocation);
+						ArrayList<CellRowAndColMask> newList = 
+								new ArrayList<CellRowAndColMask>(config.getIndexerInitialCellListSize());
+						newList.add(newEntry);
 						this.unCommonTermsMap.put(rt, newList);
 					} else {
-						list.add(cellLocation);
+						int index = Collections.binarySearch(list, newEntry);
+						if (index >= 0) {
+							CellRowAndColMask existngEntry = list.get(index);
+							existngEntry.addToMask(cell.getColumn());
+						} else {
+							list.add(newEntry);
+							Collections.sort(list);
+						}
 						this.unCommonTermsMap.put(rt, list);
 					}
 				}
