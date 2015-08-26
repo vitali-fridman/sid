@@ -26,10 +26,20 @@ import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.ExampleMode;
 import org.kohsuke.args4j.Option;
 import org.kohsuke.args4j.OptionHandlerFilter;
+import org.mapdb.DB;
+import org.mapdb.DBMaker;
+import org.mapdb.HTreeMap;
+import org.mapdb.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.shn.dlp.sid.entries.CellRowAndColMaskListSerializer;
+import com.shn.dlp.sid.entries.RawTerm;
+import com.shn.dlp.sid.entries.RawTermSerializer;
+import com.shn.dlp.sid.entries.TermAndRow;
+import com.shn.dlp.sid.entries.TermAndRowSerializer;
 import com.shn.dlp.sid.security.Crypter;
+import com.shn.dlp.sid.security.CryptoException;
 import com.shn.dlp.sid.util.PeriodicGarbageCollector;
 import com.shn.dlp.sid.util.SidConfiguration;
 
@@ -42,8 +52,13 @@ public class CryptoFileIndexer {
 
 	private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());  
 
+	private final static String COMMON_TERMS_MAP_NAME = "CommonTermsMap";
+	private final static String COMMON_TERMS_DB_NAME = "ConmmonTermsDB";
+	private static DB commonTermsDB;
+	private static HTreeMap<TermAndRow, Integer> commonTermsMap;
 
-	public static void main(String[] args) throws IOException {
+
+	public static void main(String[] args) throws IOException, CryptoException {
 		CryptoFileIndexer cfr = new CryptoFileIndexer();
 		CmdLineParser parser = new CmdLineParser(cfr);
 		try {
@@ -83,6 +98,8 @@ public class CryptoFileIndexer {
 		pgc.setDaemon(true);
 		pgc.start();
 
+		createCommonTermsDBandMap(config);
+
 		int numShards = calculateNumberOfShards(config, fileToIndex);
 		if (numShards < 1) {
 			LOG.error("Error Calculation number of shards");
@@ -92,7 +109,7 @@ public class CryptoFileIndexer {
 		List<Future<Boolean>> results = new ArrayList<>();
 
 		for (int i = 0; i < numShards; i++) {
-			Callable<Boolean> worker = new CryptoFileIndexerWorker(config, fileToIndex, numShards, i);
+			Callable<Boolean> worker = new CryptoFileIndexerWorker(config, fileToIndex, numShards, commonTermsMap, i);
 			Future<Boolean> result = executor.submit(worker);
 			results.add(result);
 		}
@@ -133,6 +150,8 @@ public class CryptoFileIndexer {
 		while (!executor.isTerminated()) {			
 		}
 
+		closeCommonTermsDB();
+
 		long end = System.nanoTime();
 		if (!fail) {
 			LOG.info("INdexing of  " + cfr.fileName + " took " + (end - start)/1000000000d + " sec");
@@ -140,6 +159,37 @@ public class CryptoFileIndexer {
 			LOG.info("Indexig of  " + cfr.fileName + " failed after " + (end - start)/1000000000d + " sec");
 		}
 	}
+
+	private static void closeCommonTermsDB() {
+		commonTermsDB.commit();
+		commonTermsDB.close();
+	}
+
+	private static void createCommonTermsDBandMap(SidConfiguration config) throws CryptoException {
+		File commonTermsDBfile = new File(config.getIndexerTempDirectory() + "/" + COMMON_TERMS_DB_NAME);
+		FileUtils.deleteQuietly(commonTermsDBfile);
+
+		commonTermsDB = DBMaker.fileDB(commonTermsDBfile).
+				transactionDisable().
+				closeOnJvmShutdown().  
+				fileMmapEnable().
+				asyncWriteEnable().
+				asyncWriteFlushDelay(config.getIndexerAsyncWriteFlushDelay()).
+				asyncWriteQueueSize(config.getIndexerAsyncWriteQueueSize()).
+				allocateStartSize(config.getIndexerMapDbSizeIncrement()).
+				allocateIncrement(config.getIndexerMapDbSizeIncrement()).
+				metricsEnable().
+				make();
+		
+		commonTermsMap =
+				commonTermsDB.hashMapCreate(COMMON_TERMS_MAP_NAME).
+					valueSerializer(Serializer.INTEGER).
+					keySerializer(new TermAndRowSerializer(config)).
+					counterEnable().					
+					make();	
+		
+	}
+
 
 	private static int calculateNumberOfShards(SidConfiguration config, String cryptoFileName) throws IOException {
 		DataInputStream dis = null;
@@ -170,7 +220,7 @@ public class CryptoFileIndexer {
 			if (config.getIndexerNumThreads() > numShards) {
 				return config.getIndexerNumThreads();
 			} else {
-			 return numShards;
+				return numShards;
 			}
 
 		} catch (FileNotFoundException e) {

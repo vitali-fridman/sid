@@ -15,7 +15,7 @@ public class AllCommonTermsSerializer extends Serializer<AllCommonTermsEntry >{
 	private final int termLength;
 	
 	public AllCommonTermsSerializer(SidConfiguration config) throws CryptoException {
-		this.termLength = new Crypter(config).getCryptoValueLength();;
+		this.termLength = new Crypter(config).getCryptoValueLength();
 	}
 	
 	@Override
@@ -27,14 +27,14 @@ public class AllCommonTermsSerializer extends Serializer<AllCommonTermsEntry >{
 	@Override
 	public AllCommonTermsEntry deserialize(DataInput in, int available) throws IOException {
 		int colMask = in.readInt();
-		byte[] term = new byte[termLength];
+		byte[] term = new byte[this.termLength];
 		in.readFully(term);
 		return new AllCommonTermsEntry(colMask, term);
 	}
 
 	@Override
 	public int fixedSize() {
-		return this.termLength;
+		return this.termLength + 4;
 	}
 
 	@Override

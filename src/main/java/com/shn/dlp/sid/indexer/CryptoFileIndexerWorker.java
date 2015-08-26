@@ -24,6 +24,7 @@ import com.shn.dlp.sid.entries.CellRowAndColMask;
 import com.shn.dlp.sid.entries.CellRowAndColMaskListSerializer;
 import com.shn.dlp.sid.entries.RawTerm;
 import com.shn.dlp.sid.entries.RawTermSerializer;
+import com.shn.dlp.sid.entries.TermAndRow;
 import com.shn.dlp.sid.security.CryptoException;
 import com.shn.dlp.sid.util.SidConfiguration;
 
@@ -44,13 +45,16 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 	private HTreeMap<RawTerm, ArrayList<CellRowAndColMask>> unCommonTermsMap;
 	private DB allCommonTermsDB;
 	private HTreeMap<RawTerm, Integer> allCommonTermsMap;
+	private final HTreeMap<TermAndRow, Integer> commonTermsMap;
 	
 	
-	public CryptoFileIndexerWorker(SidConfiguration config, String fileName, int numberOfShards, int shardNumber) {
+	public CryptoFileIndexerWorker(SidConfiguration config, String fileName, 
+			int numberOfShards, HTreeMap<TermAndRow, Integer> commonTermsMap, int shardNumber) {
 		this.config = config;
 		this.cryptoFileName = fileName;
 		this.shardNumber = shardNumber;
 		this.numberOfShards = numberOfShards;
+		this.commonTermsMap = commonTermsMap;
 	}
 
 	@Override
@@ -112,6 +116,7 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 				int combinedMask = 0;
 				for (CellRowAndColMask location : locations) {
 					combinedMask = combinedMask | (1 << location.getMask());
+					this.commonTermsMap.put(new TermAndRow(term, location.getRow()), location.getMask());
 				}
 				this.allCommonTermsMap.put(entry.getKey(), combinedMask);
 				this.unCommonTermsMap.remove(term);
@@ -122,12 +127,12 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 	
 	private  void createDB(String dbDirectoryName, int shardNumber) throws IOException {
 		
-		File commonTermsDBfile = new File(dbDirectoryName + "/" + UNCOMMON_TERMS_DB_NAME + "." + shardNumber);
-		FileUtils.deleteQuietly(commonTermsDBfile);
+		File uncommonTermsDBfile = new File(dbDirectoryName + "/" + UNCOMMON_TERMS_DB_NAME + "." + shardNumber);
+		FileUtils.deleteQuietly(uncommonTermsDBfile);
 		File allCommonTermsDBfile = new File(dbDirectoryName + "/" + ALL_COMMON_TERMS_DB_NAME + "." + shardNumber);
 		FileUtils.deleteQuietly(allCommonTermsDBfile);
 		
-			this.uncommonTermsDB = DBMaker.fileDB(commonTermsDBfile).
+			this.uncommonTermsDB = DBMaker.fileDB(uncommonTermsDBfile).
 					transactionDisable().
 					closeOnJvmShutdown().  
 					fileMmapEnable().
