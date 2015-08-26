@@ -35,17 +35,4 @@ public class RawTermSerializer extends Serializer<RawTerm> {
 		return this.cryptoDataLength;
 	}
 
-	@Override
-	public int hashCode(RawTerm a) {
-		byte[] value = a.getValue();
-		return (((value[3]       ) << 24) |
-	            ((value[2] & 0xff) << 16) |
-	            ((value[1] & 0xff) <<  8) |
-	            ((value[0] & 0xff)      ));
-	}
-	
-	@Override
-	public boolean equals(RawTerm term1, RawTerm term2) {
-		return term1.equals(term2);
-	}
 }

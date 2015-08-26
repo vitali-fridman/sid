@@ -36,18 +36,4 @@ public class AllCommonTermsSerializer extends Serializer<AllCommonTermsEntry >{
 	public int fixedSize() {
 		return this.termLength + 4;
 	}
-
-	@Override
-	public int hashCode(AllCommonTermsEntry entry) {
-		byte[] value = entry.getTerm();
-		return (((value[3]       ) << 24) |
-	            ((value[2] & 0xff) << 16) |
-	            ((value[1] & 0xff) <<  8) |
-	            ((value[0] & 0xff)      )) + entry.getColMask();
-	}
-	
-	@Override
-	public boolean equals(AllCommonTermsEntry entry1, AllCommonTermsEntry entry2) {
-		return (entry1.getTerm().equals(entry2.getTerm())) && (entry1.getColMask() == entry2.getColMask());
-	}
 }
