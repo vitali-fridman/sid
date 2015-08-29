@@ -69,6 +69,9 @@ public class SidConfiguration {
 	private final static int TERM_COMMONALITY_THREASHOLD_DEFAULT = 100;
 	private final static String TERM_COMMONALITY_THREASHOLD_PROP = "sid.termCommonalityThreashold";
 	
+	private final static String GRAMAR_FILES_DIR_DEFAULT = "grammar";
+	private final static String GRAMAR_FILES_DIR_PROP = "sid.GrammarFilesDirectory";
+	
 	
 	public SidConfiguration (String propertiesFileName) throws FileNotFoundException, IOException {
 		this.properties = new Properties();
@@ -88,6 +91,10 @@ public class SidConfiguration {
 
 	public String getDiskMountPoint() {
 		return getStringProperty(MOUNT_POINT_PROP, MOUNT_POINT_DEFAULT);
+	}
+	
+	public String getGramarFileDirectory() {
+		return getDiskMountPoint() + getStringProperty(GRAMAR_FILES_DIR_PROP, GRAMAR_FILES_DIR_DEFAULT);
 	}
 
 	public String getDataFilesDrictory() {
