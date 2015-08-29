@@ -144,6 +144,10 @@ public class CryptoFileIndexer {
 		}
 
 		closeCommonTermsDB();
+		
+		String indexDirectory = config.getIndexesDirectory() + File.separator + cfr.fileName;
+		FileUtils.deleteQuietly(new File(indexDirectory));
+		FileUtils.moveDirectory(new File(tempDirectory), new File(indexDirectory));
 
 		long end = System.nanoTime();
 		if (!fail) {
