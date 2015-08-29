@@ -13,6 +13,7 @@ import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.Vocabulary;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.tool.Grammar;
+import org.apache.log4j.LogManager;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
@@ -56,19 +57,23 @@ public class StandardLexer {
 	    
 	    Vocabulary vc = g.getVocabulary();
 	    
-	    tokens.consume();
-	    int i = tokens.index();
-	    Token tk = tokens.get(i-1);
-	    int type = tk.getType();
-	    String name = vc.getSymbolicName(type);
-	    String text = tk.getText();
-	    System.out.println(tk);
+	    int i=0;
+	    int type = -1;
+	    tokens.LA(1);
+	    while (true) {
+	    	int index = tokens.index();
+	    	Token token = tokens.get(index);
+	    	type = token.getType();
+	    	if (type == Token.EOF) {
+	    		break;
+	    	}
+	    	i++;
+	    	tokens.consume();
+	    };
+	    LOG.info("Found " + i + " tokens");
+	    System.out.println("Found " + i + " tokens");
 	    
-//	    tokens.fill();
-//	    List<Token> allTokens = tokens.getTokens();
-//	    for (Token token : allTokens) {
-//	    	System.out.println(token);
-//	    }
+	    LogManager.shutdown();
 	}
 
 }
