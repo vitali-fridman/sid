@@ -1,0 +1,10 @@
+grammar StandardGrammar;
+init :  ;
+CC: (D4 D4 D4 D4 | D4 '-' D4 '-' D4 '-' D4) ;
+fragment D : [0-9] ;
+fragment D4 : D D D D ;
+WS : [ \t]+ ;
+NL : [\n\r] ;
+WORD : [a-zA-Z]+ ;
+NUMBER : [0-9]+ ;
+PUNCTUATION : ',' |';' | ':' ;
