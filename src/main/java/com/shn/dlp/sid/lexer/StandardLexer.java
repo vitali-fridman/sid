@@ -73,7 +73,6 @@ public class StandardLexer {
 	    while(true) {
 	    	int mark = charStream.mark();
 	    	Token token = lexEngine.nextToken();
-	    	int channel = token.getChannel();
 	    	String tokenType = vc.getDisplayName(token.getType());
 	    	if (token.getType() == Token.EOF) {
 	    		break;
