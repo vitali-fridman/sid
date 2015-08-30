@@ -69,12 +69,13 @@ public class StandardLexer {
 	    while(true) {
 	    	int mark = charStream.mark();
 	    	Token token = lexEngine.nextToken();
-	    	Interval interval = new Interval(token.getStartIndex(), token.getStopIndex());
-	    	String text = charStream.getText(interval);
-	    	charStream.release(mark);
 	    	if (token.getType() == Token.EOF) {
 	    		break;
 	    	}
+	    	Interval interval = new Interval(token.getStartIndex(), token.getStopIndex());
+	    	String text = charStream.getText(interval);
+	    	charStream.release(mark);
+
 	    	if (i%100000 == 0) {
 	    		LOG.info("On token " + i);
 	    	}
