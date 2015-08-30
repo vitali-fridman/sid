@@ -67,7 +67,7 @@ public class CensusTestDataFileGenerator {
 
 		this.cryptoWriter = new BufferedOutputStream(new FileOutputStream(new File(this.fileName + Crypter.CRYPRO_FILE_SUFFIX)), BUFFER_SIZE);
 		if (writeClearFile) {
-			clearWriter = new BufferedWriter(new FileWriter(new File(this.fileName + CLEAR_SUFFIX)));
+			clearWriter = new BufferedWriter(new FileWriter(new File(this.fileName + CLEAR_SUFFIX)), BUFFER_SIZE);
 		} else {
 			clearWriter = null;
 		}

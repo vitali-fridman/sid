@@ -1,16 +1,21 @@
 package com.shn.dlp.sid.lexer;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.lang.invoke.MethodHandles;
 import java.util.List;
 
 import org.antlr.v4.runtime.ANTLRFileStream;
+import org.antlr.v4.runtime.ANTLRInputStream;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.LexerInterpreter;
 import org.antlr.v4.runtime.ParserInterpreter;
 import org.antlr.v4.runtime.Token;
+import org.antlr.v4.runtime.UnbufferedCharStream;
 import org.antlr.v4.runtime.Vocabulary;
+import org.antlr.v4.runtime.misc.Interval;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.tool.Grammar;
 import org.apache.log4j.LogManager;
@@ -52,26 +57,33 @@ public class StandardLexer {
 		String testFile = sl.testFile;
 
 		Grammar g = Grammar.load(grammarFile);
-	    LexerInterpreter lexEngine = g.createLexerInterpreter(new ANTLRFileStream(testFile));
-	    CommonTokenStream tokens = new CommonTokenStream(lexEngine);
+		UnbufferedCharStream charStream = new UnbufferedCharStream(new FileInputStream(new File(testFile)), 100000000);
+	    LexerInterpreter lexEngine = g.createLexerInterpreter(charStream);
+	    // CommonTokenStream tokens = new CommonTokenStream(lexEngine);
 	    
 	    Vocabulary vc = g.getVocabulary();
 	    
+	    long start=System.nanoTime();
+	    
 	    int i=0;
-	    int type = -1;
-	    tokens.LA(1);
-	    while (true) {
-	    	int index = tokens.index();
-	    	Token token = tokens.get(index);
-	    	type = token.getType();
-	    	if (type == Token.EOF) {
+	    while(true) {
+	    	int mark = charStream.mark();
+	    	Token token = lexEngine.nextToken();
+	    	Interval interval = new Interval(token.getStartIndex(), token.getStopIndex());
+	    	String text = charStream.getText(interval);
+	    	charStream.release(mark);
+	    	if (token.getType() == Token.EOF) {
 	    		break;
 	    	}
+	    	if (i%100000 == 0) {
+	    		LOG.info("On token " + i);
+	    	}
 	    	i++;
-	    	tokens.consume();
-	    };
-	    LOG.info("Found " + i + " tokens");
-	    System.out.println("Found " + i + " tokens");
+	    }
+	    
+	    long end = System.nanoTime();
+	    LOG.info("Found " + i + " tokens in " + (end - start)/1000000000d + " sec");
+	   
 	    
 	    LogManager.shutdown();
 	}
