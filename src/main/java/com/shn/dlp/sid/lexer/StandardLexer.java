@@ -3,20 +3,15 @@ package com.shn.dlp.sid.lexer;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.lang.invoke.MethodHandles;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
-import org.antlr.v4.runtime.ANTLRFileStream;
-import org.antlr.v4.runtime.ANTLRInputStream;
-import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.LexerInterpreter;
-import org.antlr.v4.runtime.ParserInterpreter;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.UnbufferedCharStream;
 import org.antlr.v4.runtime.Vocabulary;
 import org.antlr.v4.runtime.misc.Interval;
-import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.tool.Grammar;
 import org.apache.log4j.LogManager;
 import org.kohsuke.args4j.CmdLineException;
@@ -40,7 +35,7 @@ public class StandardLexer {
 	@Option(name="-p", usage="Properties File", required=false)
 	private String propertiesFile;
 	
-	public static void main(String[] args) throws IOException {
+	public static void main(String[] args) throws IOException, ClassNotFoundException, InstantiationException, IllegalAccessException {
 		StandardLexer sl = new StandardLexer();
 		CmdLineParser clParser = new CmdLineParser(sl);
 		try {
@@ -57,27 +52,52 @@ public class StandardLexer {
 		String testFile = sl.testFile;
 
 		Grammar g = Grammar.load(grammarFile);
-		UnbufferedCharStream charStream = new UnbufferedCharStream(new FileInputStream(new File(testFile)), 100000000);
+		FileInputStream fileStream = new FileInputStream(new File(testFile));
+		UnbufferedCharStream charStream = new UnbufferedCharStream(fileStream, 100000000);
 	    LexerInterpreter lexEngine = g.createLexerInterpreter(charStream);
-	    // CommonTokenStream tokens = new CommonTokenStream(lexEngine);
 	    
 	    Vocabulary vc = g.getVocabulary();
+	    Map<String, Integer> mapOfTypes = lexEngine.getTokenTypeMap();
+	    Map<String, TokenProcessor> map = new HashMap<String, TokenProcessor>();
+	    for (String rule : mapOfTypes.keySet()) {
+	    	Class<?> c = Class.forName("com.shn.dlp.sid.lexer." + rule + "processor");
+	    	TokenProcessor processor = (TokenProcessor) c.newInstance();
+	    	map.put(rule, processor);
+	    }
 	    
 	    long start=System.nanoTime();
 	    
 	    int i=0;
+	    long accumulatedFileSize = 0;
+	    String tokenProcessor = null;
 	    while(true) {
 	    	int mark = charStream.mark();
 	    	Token token = lexEngine.nextToken();
+	    	int channel = token.getChannel();
+	    	String tokenType = vc.getDisplayName(token.getType());
 	    	if (token.getType() == Token.EOF) {
 	    		break;
 	    	}
+	    	
 	    	Interval interval = new Interval(token.getStartIndex(), token.getStopIndex());
 	    	String text = charStream.getText(interval);
 	    	charStream.release(mark);
+	    	
+	    	TokenProcessor processor = map.get(tokenType);
+	    	processor.process(token, text);
+	    	
+	    	if (Integer.MAX_VALUE - token.getStopIndex() < 1000 ) {
+	    		accumulatedFileSize += token.getStopIndex();
+	    		LOG.info("Reached maxumum chunk length, rolling");
+	    		fileStream.close();
+	    		fileStream = new FileInputStream(new File(testFile));
+	    		fileStream.skip(accumulatedFileSize);
+	    		charStream = new UnbufferedCharStream(fileStream, 100000000);
+	    		lexEngine = g.createLexerInterpreter(charStream);
+	    	}
 
-	    	if (i%100000 == 0) {
-	    		LOG.info("On token " + i);
+	    	if (i%1000000 == 0) {
+	    		LOG.info("On token " + String.format("%,d", i) + "processor: " + tokenProcessor);
 	    	}
 	    	i++;
 	    }
