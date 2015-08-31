@@ -1,10 +1,10 @@
-grammar StandardGrammar;
-init :  ;
-CC: (D4 D4 D4 D4 | D4 '-' D4 '-' D4 '-' D4) ;
+lexer grammar StandardGrammar;
+CC_CC: (D4 D4 D4 D4 | D4 '-' D4 '-' D4 '-' D4) ;
 fragment D : [0-9] ;
 fragment D4 : D D D D ;
-WS : [ \t]+ ;
-NL : [\n\r] ;
-WORD : [a-zA-Z]+ ;
-NUMBER : [0-9]+ ;
-PUNCTUATION : ',' |';' | ':' ;
+WS_WS : [ \t]+ ;
+NL_NL : [\n\r] ;
+WORD_WORD : [a-zA-Z]+ ;
+NUMBER_NUMBER : [0-9]+ ;
+PUNCTUATION_PUNCTUATION : ',' |';' | ':' ;
+BLUECROSS_GENERIC : 'X''D''P' D D D 'A' D D D D D ;

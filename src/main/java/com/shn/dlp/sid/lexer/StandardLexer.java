@@ -60,8 +60,15 @@ public class StandardLexer {
 	    Map<String, Integer> mapOfTypes = lexEngine.getTokenTypeMap();
 	    Map<String, TokenProcessor> map = new HashMap<String, TokenProcessor>();
 	    for (String rule : mapOfTypes.keySet()) {
-	    	Class<?> c = Class.forName("com.shn.dlp.sid.lexer." + rule + "processor");
-	    	TokenProcessor processor = (TokenProcessor) c.newInstance();
+	    	TokenProcessor processor;
+	    	Class<?> c;
+	    	if (rule == "EOF") {
+	    		c = Class.forName("com.shn.dlp.sid.lexer.EOFprocessor");
+	    	} else {
+	    		String[] split = rule.split("_");
+	    		c = Class.forName("com.shn.dlp.sid.lexer." + split[1] + "processor");
+	    	}
+	    	processor = (TokenProcessor) c.newInstance();
 	    	map.put(rule, processor);
 	    }
 	    
@@ -83,7 +90,7 @@ public class StandardLexer {
 	    	charStream.release(mark);
 	    	
 	    	TokenProcessor processor = map.get(tokenType);
-	    	processor.process(token, text);
+	    	processor.process(token, text, vc.getSymbolicName(token.getType()));
 	    	
 	    	if (Integer.MAX_VALUE - token.getStopIndex() < 1000 ) {
 	    		accumulatedFileSize += token.getStopIndex();

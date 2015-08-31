@@ -4,5 +4,5 @@ import org.antlr.v4.runtime.Token;
 
 public interface TokenProcessor {
 
-	public void process(Token token, String text);
+	public void process(Token token, String text, String type);
 }
