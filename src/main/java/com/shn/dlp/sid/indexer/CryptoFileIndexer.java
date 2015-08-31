@@ -18,6 +18,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import org.apache.commons.io.FileUtils;
+import org.apache.log4j.LogManager;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
@@ -29,6 +30,9 @@ import org.mapdb.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.fasterxml.jackson.core.JsonGenerationException;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.shn.dlp.sid.entries.TermAndRow;
 import com.shn.dlp.sid.entries.TermAndRowSerializer;
 import com.shn.dlp.sid.security.Crypter;
@@ -45,10 +49,18 @@ public class CryptoFileIndexer {
 
 	private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());  
 
-	private final static String COMMON_TERMS_MAP_NAME = "CommonTermsMap";
-	private final static String COMMON_TERMS_DB_NAME = "ConmmonTermsDB";
+	public final static String COMMON_TERMS_MAP_NAME = "CommonTermsMap";
+	public final static String COMMON_TERMS_DB_NAME = "ConmmonTermsDB";
+	public final static String DESCRIPTOR_FILE_NAME = "IndexDescriptor";
 	private static DB commonTermsDB;
 	private static HTreeMap<TermAndRow, Integer> commonTermsMap;
+	private static int headerLength;
+	private static int formatVersion;
+	private static String algorithm;
+	private static int termLength;	
+	private static int numRows;
+	private static int numColumns;
+	private static int numShards;
 
 
 	public static void main(String[] args) throws IOException, CryptoException {
@@ -93,10 +105,12 @@ public class CryptoFileIndexer {
 
 		createCommonTermsDBandMap(config);
 
-		int numShards = calculateNumberOfShards(config, fileToIndex);
+		numShards = calculateNumberOfShards(config, fileToIndex);
+		
 		if (numShards < 1) {
 			LOG.error("Error Calculation number of shards");
 			System.exit(-1);
+			LogManager.shutdown();
 		}
 		ExecutorService executor= Executors.newFixedThreadPool(config.getIndexerNumThreads());
 		List<Future<Boolean>> results = new ArrayList<>();
@@ -148,6 +162,8 @@ public class CryptoFileIndexer {
 		String indexDirectory = config.getIndexesDirectory() + File.separator + cfr.fileName;
 		FileUtils.deleteQuietly(new File(indexDirectory));
 		FileUtils.moveDirectory(new File(tempDirectory), new File(indexDirectory));
+		
+		writeDescriptorFile(indexDirectory);
 
 		long end = System.nanoTime();
 		if (!fail) {
@@ -155,6 +171,16 @@ public class CryptoFileIndexer {
 		} else {
 			LOG.info("Indexig of  " + cfr.fileName + " failed after " + (end - start)/1000000000d + " sec");
 		}
+		
+		LogManager.shutdown();
+	}
+
+	private static void writeDescriptorFile(String indexDirectory) 
+			throws JsonGenerationException, JsonMappingException, IOException {
+		IndexDescriptor descriptor = new IndexDescriptor(headerLength, formatVersion, algorithm, termLength,
+				numRows, numColumns, numShards);
+		ObjectMapper mapper = new ObjectMapper();
+		mapper.writeValue(new File(indexDirectory + File.separator + DESCRIPTOR_FILE_NAME), descriptor);
 	}
 
 	private static void closeCommonTermsDB() {
@@ -184,7 +210,7 @@ public class CryptoFileIndexer {
 					keySerializer(new TermAndRowSerializer(config)).
 					counterEnable().					
 					make();	
-		
+	
 	}
 
 
@@ -192,17 +218,18 @@ public class CryptoFileIndexer {
 		DataInputStream dis = null;
 		try {
 			dis = new DataInputStream(new BufferedInputStream(new FileInputStream(cryptoFileName)));
-			int headerLength = dis.readByte(); // ignore
-			int formatVersion = dis.readByte();
+			headerLength = dis.readByte(); // ignore
+			formatVersion = dis.readByte();
 			if (formatVersion != config.getCryptoFileFormatVersion()) {
 				LOG.error("Wrong crypto file format version");
 				return -1;
 			}
 			byte[] alg = new byte[config.getCryptoFileHeaderAlgoritmNameLength()];
 			dis.readFully(alg);
-			int termLength = dis.readByte(); // ignore
-			int numRows = dis.readInt();
-			int numColumns = dis.readByte();
+			algorithm = new String(alg).trim();
+			termLength = dis.readByte(); // ignore
+			numRows = dis.readInt();
+			numColumns = dis.readByte();
 			if (numColumns < 1 || numColumns > 30) {
 				LOG.error("Number of columns is " + numColumns + " but it must be between 1 and 30");
 				return -1;
