@@ -37,10 +37,10 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 	private final String cryptoFileName;
 	private final int numberOfShards;
 	private final int shardNumber;
-	private final static String UNCOMMON_TERMS_MAP_NAME = "UncommonTermsMap";
-	private final static String UNCOMMON_TERMS_DB_NAME = "UncommonTermsDB";
-	private final static String ALL_COMMON_TERMS_MAP_NAME = "AllCommonTermsMap";
-	private final static String ALL_COMMON_TERMS_DB_NAME = "AllConmmonTermsDB";
+	public final static String UNCOMMON_TERMS_MAP_NAME = "UncommonTermsMap";
+	public final static String UNCOMMON_TERMS_DB_NAME = "UncommonTermsDB";
+	public final static String ALL_COMMON_TERMS_MAP_NAME = "AllCommonTermsMap";
+	public final static String ALL_COMMON_TERMS_DB_NAME = "AllConmmonTermsDB";
 	private DB uncommonTermsDB;
 	private HTreeMap<RawTerm, ArrayList<CellRowAndColMask>> unCommonTermsMap;
 	private DB allCommonTermsDB;
