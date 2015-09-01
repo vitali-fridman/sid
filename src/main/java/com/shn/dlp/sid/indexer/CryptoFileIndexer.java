@@ -185,6 +185,7 @@ public class CryptoFileIndexer {
 
 	private static void closeCommonTermsDB() {
 		commonTermsDB.commit();
+		commonTermsDB.compact();
 		commonTermsDB.close();
 	}
 
