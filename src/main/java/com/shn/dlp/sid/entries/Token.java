@@ -27,5 +27,11 @@ public class Token {
 	public void setPresense(Presense presense) {
 		this.presense = presense;
 	}
+
+	@Override
+	public String toString() {
+		return "Token:" + this.presense + ":" + this.clear;
+	}
+	
 	
 }

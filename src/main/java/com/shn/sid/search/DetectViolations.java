@@ -25,6 +25,8 @@ public class DetectViolations {
 	private String indexName;
 	@Option(name="-c",usage="Column Threashold", required=true)
 	private int colThreshold;
+	@Option(name="-v",usage="Violations Threashold", required=true)
+	private int cviolationsThreshold;
 	
 	private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 	
@@ -41,10 +43,12 @@ public class DetectViolations {
 		
 		SidConfiguration config = new SidConfiguration();
 		TestLexer lexer = new TestLexer(config);
-		List<Token> terms = lexer.scan(dv.fileName);
+		List<Token> tokens = lexer.scan(dv.fileName);
 		
-		ViolationsDetector detector = new ViolationsDetector(config);
-		List<Violation> violations = detector.findViolations(terms);
+		ViolationsDetector detector = new ViolationsDetector(config, dv.indexName);
+		detector.loadIndex();
+		List<Violation> violations = detector.findViolations(tokens, dv.colThreshold, dv.cviolationsThreshold);
+		detector.unloadIndex();
 		
 		for (Violation violation : violations) {
 			LOG.info("Found violation: " + violation);

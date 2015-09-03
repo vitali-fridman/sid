@@ -3,6 +3,8 @@ package com.shn.sid.search;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
@@ -19,6 +21,7 @@ import com.shn.dlp.sid.entries.RawTermSerializer;
 import com.shn.dlp.sid.entries.TermAndRow;
 import com.shn.dlp.sid.entries.TermAndRowSerializer;
 import com.shn.dlp.sid.entries.Token;
+import com.shn.dlp.sid.entries.Token.Presense;
 import com.shn.dlp.sid.indexer.CryptoFileIndexer;
 import com.shn.dlp.sid.indexer.CryptoFileIndexerWorker;
 import com.shn.dlp.sid.indexer.IndexDescriptor;
@@ -38,6 +41,7 @@ public class SearchIndex {
 	private HTreeMap<RawTerm, ArrayList<CellRowAndColMask>>[]  unCommonTermsMaps;
 	private DB[] allCmmonTermsDBs;
 	private HTreeMap<RawTerm, Integer>[] allCommonTermsMaps;
+	public enum TokenPresense {COMMON, UNCOMMON};
 	
 	
 	public SearchIndex(SidConfiguration config, String indexName) {
@@ -87,11 +91,37 @@ public class SearchIndex {
 		}
 	}
 	
-	public Token.Presense lookupPresense(Token token) {
-		int shard = calculateShard(token);
-		this.allCommonTermsMaps[shard].containsKey(token.getTerm());
+	public FirstSearchLookupResult firstSearch(Token token) {
+		FirstSearchLookupResult result = new FirstSearchLookupResult();
+		int shardNumber = calculateShard(token);
+		HTreeMap<RawTerm, Integer> allCommonTermsMap = this.allCommonTermsMaps[shardNumber];
+		Integer commonTermColMask = allCommonTermsMap.get(token.getTerm());
+		result.token = token;
+		if (commonTermColMask != null) {
+			result.presense = TokenPresense.COMMON;
+			result.commonTermColumnMask = commonTermColMask;
+		} else {
+			HTreeMap<RawTerm, ArrayList<CellRowAndColMask>> uncommonTermsMap = this.unCommonTermsMaps[shardNumber];
+			ArrayList <CellRowAndColMask> rowAndColMask = uncommonTermsMap.get(token.getTerm());
+			if (rowAndColMask != null) {
+				result.presense = TokenPresense.UNCOMMON;
+				result.cellRowAndColMask = rowAndColMask;
+			} else {
+				result = null;
+			}
+		}
+		return result;
 	}
 
+	public boolean secondSearch(int row, Token token) {
+		Integer colMask = commonTermsMap.get(new TermAndRow(token.getTerm(), row));
+		if (colMask != null) {
+			return true;
+		} else {
+			return false;
+		}
+	}
+	
 	private int calculateShard(Token token) {
 		RawTerm rt = token.getTerm();
 		int hash = rt.hashCode();
@@ -100,6 +130,34 @@ public class SearchIndex {
 		return shardIndex;
 	}
 	
-	
+	public class FirstSearchLookupResult {
+		public TokenPresense getPresense() {
+			return presense;
+		}
+		public void setPresense(TokenPresense presense) {
+			this.presense = presense;
+		}
+		public int getCommonTermColumnMask() {
+			return commonTermColumnMask;
+		}
+		public void setCommonTermColumnMask(int commonTermColumnMask) {
+			this.commonTermColumnMask = commonTermColumnMask;
+		}
+		public ArrayList<CellRowAndColMask> getCellRowAndColMask() {
+			return cellRowAndColMask;
+		}
+		public void setCellRowAndColMask(ArrayList<CellRowAndColMask> cellRowAndColMask) {
+			this.cellRowAndColMask = cellRowAndColMask;
+		}
+		
+		public Token getToken() {
+			return token;
+		}
+		
+		private TokenPresense presense;
+		private int commonTermColumnMask;
+		private ArrayList<CellRowAndColMask> cellRowAndColMask;
+		private Token token;
+	}
 
 }
