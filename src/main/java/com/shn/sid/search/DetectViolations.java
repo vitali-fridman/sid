@@ -48,7 +48,15 @@ public class DetectViolations {
 		
 		ViolationsDetector detector = new ViolationsDetector(config, dv.indexName);
 		detector.loadIndex();
-		List<Violation> violations = detector.findViolations(tokens, dv.colThreshold, dv.cviolationsThreshold);
+		long start = 0;
+		long end = 0;
+		List<Violation> violations = null;
+		start = System.nanoTime();
+		for (int i=0; i<100000; i++) {
+			violations = detector.findViolations(tokens, dv.colThreshold, dv.cviolationsThreshold);
+		}
+		end = System.nanoTime();
+		LOG.info("Detection took " + (end-start)/10000000000d + " ms");
 		detector.unloadIndex();
 		
 		if (violations != null) {

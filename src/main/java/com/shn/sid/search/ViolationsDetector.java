@@ -61,11 +61,11 @@ public class ViolationsDetector {
 		}
 
 		if (numUncommon == 0) {
-			LOG.info("There are 0 uncommon terms in SID search, baling out");
+			LOG.debug("There are 0 uncommon terms in SID search, baling out");
 			return null;
 		}
 		if (numUncommon + numCommon < colThreashold) {
-			LOG.info("Numbre of common and uncommone terms in SID search is less than column threashold, baling out");
+			LOG.debug("Numbre of common and uncommone terms in SID search is less than column threashold, baling out");
 			return null;
 		}
 
@@ -85,26 +85,9 @@ public class ViolationsDetector {
 		}
 
 		if ((violations.size() >= violationsThreashold )) {
-			LOG.info("Found enough violation just in uncommon terms, returning this list");
+			LOG.debug("Found enough violation just in uncommon terms, returning this list");
 			return violations;
 		}
-
-//		for (Violation candidateViolation : candidateViolations) {
-//			int row = candidateViolation.getRow();
-//			for (SearchIndex.FirstSearchLookupResult commonFirstSearcResult : commonFirstSearchResults) {
-//				Token commonToken = commonFirstSearcResult.getToken();
-//				if (this.index.secondSearch(row, commonToken)) {
-//					candidateViolation.addToken(commonToken);
-//					if (candidateViolation.numTokens() > colThreashold) {
-//						violations.add(candidateViolation);
-//						if (violations.size() >= violationsThreashold) {
-//							LOG.info("Found engougth violations while processing candidate rows, returning this list");
-//							return violations;
-//						}
-//					}
-//				}
-//			}
-//		}
 		
 		for (Violation candidateViolation : candidateViolations) {
 			int candidateRow = candidateViolation.getRow();
@@ -124,13 +107,13 @@ public class ViolationsDetector {
 				}
 				violations.add(candidateViolation);
 				if (violations.size() >= violationsThreashold) {
-					LOG.info("Added enough candidate violations, returining");
+					LOG.debug("Added enough candidate violations, returining");
 					return violations;
 				}
 			}
 		}
 		
-		LOG.info("Did not find enough violations");
+		LOG.debug("Did not find enough violations");
 		return null;
 	}
 
