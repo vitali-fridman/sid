@@ -50,7 +50,9 @@ public class ViolationsDetector {
 		int numUncommon = 0;
 		for (int i=0; i<tokens.size(); i++)  {
 			SearchIndex.FirstSearchLookupResult firstSearchResult = index.firstSearch(tokens.get(i));
-			if (firstSearchResult.getPresense() == TokenPresense.UNCOMMON) {
+			if (firstSearchResult == null) {
+				//nothing
+			} else if (firstSearchResult.getPresense() == TokenPresense.UNCOMMON) {
 				numUncommon++;
 				uncommonFirstSearchResults.add(firstSearchResult);
 			} else {
@@ -105,8 +107,10 @@ public class ViolationsDetector {
 			}
 		}
 		
-		LOG.info("Did not find enough violations, returning null");
-		return null;
+		// LOG.info("Did not find enough violations, returning null");
+		// return null;
+		LOG.info("returing " + violations.size() + " violations");
+		return violations;
 	}
 
 	private Map<Integer, List<Token>> separateUncommonTermsPerRow(List<FirstSearchLookupResult> firstSearchResults) {
@@ -114,11 +118,12 @@ public class ViolationsDetector {
 		for (SearchIndex.FirstSearchLookupResult result : firstSearchResults) {
 			ArrayList<CellRowAndColMask> rows = result.getCellRowAndColMask();
 			for (CellRowAndColMask entry : rows) {
-				List<Token> listOfRows = perRowMap.get(entry.getRow());
-				if (listOfRows == null) {
-					listOfRows = new LinkedList<Token>();
+				List<Token> listOfTokens = perRowMap.get(entry.getRow());
+				if (listOfTokens == null) {
+					listOfTokens = new LinkedList<Token>();
 				}
-				listOfRows.add(result.getToken());
+				listOfTokens.add(result.getToken());
+				perRowMap.put(entry.getRow(), listOfTokens);
 			}
 		}
 		return perRowMap;

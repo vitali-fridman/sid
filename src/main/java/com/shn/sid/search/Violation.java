@@ -28,15 +28,15 @@ public class Violation {
 	}
 
 	public int numTokens() {
-		return this.numTokens();
+		return this.tokens.size();
 	}
 
 	@Override
 	public String toString() {
 		StringBuilder sb= new StringBuilder();
-		sb.append("Violation ");
+		sb.append("Violation \n");
 		for (Token token : this.tokens) {
-			sb.append(":").append(token.toString());
+			sb.append(" \t:").append(token.toString()).append("\n");
 		}
 		return sb.toString();
 	}

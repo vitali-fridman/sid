@@ -3,6 +3,7 @@ package com.shn.sid.search;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -38,9 +39,9 @@ public class SearchIndex {
 	private DB commonTermsDB;
 	private HTreeMap<TermAndRow, Integer> commonTermsMap;
 	private DB[] uncommonTermsDBs;
-	private HTreeMap<RawTerm, ArrayList<CellRowAndColMask>>[]  unCommonTermsMaps;
+	private ArrayList<HTreeMap<RawTerm, ArrayList<CellRowAndColMask>>>  unCommonTermsMaps;
 	private DB[] allCmmonTermsDBs;
-	private HTreeMap<RawTerm, Integer>[] allCommonTermsMaps;
+	private ArrayList<HTreeMap<RawTerm, Integer>> allCommonTermsMaps;
 	public enum TokenPresense {COMMON, UNCOMMON};
 	
 	
@@ -66,19 +67,25 @@ public class SearchIndex {
 				Serializer.INTEGER,
 				null);
 		
+		this.uncommonTermsDBs = new DB[this.numShards];
+		this.allCmmonTermsDBs = new DB[this.numShards];
+		this.unCommonTermsMaps = new ArrayList<HTreeMap<RawTerm, ArrayList<CellRowAndColMask>>>();
+		this.allCommonTermsMaps = new ArrayList<HTreeMap<RawTerm, Integer>>();
+		
+		
 		for (int i=0; i<this.numShards; i++) {
 			File unCommonTermsDBfile = new File(this.indexDirectory + File.separator + 
 					CryptoFileIndexerWorker.UNCOMMON_TERMS_DB_NAME + "." + i);
 			this.uncommonTermsDBs[i] = DBMaker.fileDB(unCommonTermsDBfile).fileMmapEnable().readOnly().make();
-			this.unCommonTermsMaps[i] = this.uncommonTermsDBs[i].hashMap(CryptoFileIndexerWorker.UNCOMMON_TERMS_MAP_NAME,
+			this.unCommonTermsMaps.add(this.uncommonTermsDBs[i].hashMap(CryptoFileIndexerWorker.UNCOMMON_TERMS_MAP_NAME,
 					new RawTermSerializer(this.config),
 					new CellRowAndColMaskListSerializer(),
-					null);
+					null));
 			File allCommonTermsDBfile = new File(this.indexDirectory + File.separator +
 					CryptoFileIndexerWorker.ALL_COMMON_TERMS_DB_NAME + "." + i);
 			this.allCmmonTermsDBs[i] = DBMaker.fileDB(allCommonTermsDBfile).fileMmapEnable().readOnly().make();
-			this.allCommonTermsMaps[i] = this.allCmmonTermsDBs[i].hashMap(CryptoFileIndexerWorker.ALL_COMMON_TERMS_MAP_NAME, 
-					new RawTermSerializer(this.config), Serializer.INTEGER, null);
+			this.allCommonTermsMaps.add(this.allCmmonTermsDBs[i].hashMap(CryptoFileIndexerWorker.ALL_COMMON_TERMS_MAP_NAME, 
+					new RawTermSerializer(this.config), Serializer.INTEGER, null));
 		}
 		
 	}
@@ -94,14 +101,14 @@ public class SearchIndex {
 	public FirstSearchLookupResult firstSearch(Token token) {
 		FirstSearchLookupResult result = new FirstSearchLookupResult();
 		int shardNumber = calculateShard(token);
-		HTreeMap<RawTerm, Integer> allCommonTermsMap = this.allCommonTermsMaps[shardNumber];
+		HTreeMap<RawTerm, Integer> allCommonTermsMap = this.allCommonTermsMaps.get(shardNumber);
 		Integer commonTermColMask = allCommonTermsMap.get(token.getTerm());
 		result.token = token;
 		if (commonTermColMask != null) {
 			result.presense = TokenPresense.COMMON;
 			result.commonTermColumnMask = commonTermColMask;
 		} else {
-			HTreeMap<RawTerm, ArrayList<CellRowAndColMask>> uncommonTermsMap = this.unCommonTermsMaps[shardNumber];
+			HTreeMap<RawTerm, ArrayList<CellRowAndColMask>> uncommonTermsMap = this.unCommonTermsMaps.get(shardNumber);
 			ArrayList <CellRowAndColMask> rowAndColMask = uncommonTermsMap.get(token.getTerm());
 			if (rowAndColMask != null) {
 				result.presense = TokenPresense.UNCOMMON;

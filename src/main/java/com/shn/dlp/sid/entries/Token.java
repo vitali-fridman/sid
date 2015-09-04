@@ -30,7 +30,7 @@ public class Token {
 
 	@Override
 	public String toString() {
-		return "Token:" + this.presense + ":" + this.clear;
+		return "Token: " + this.clear;
 	}
 	
 	

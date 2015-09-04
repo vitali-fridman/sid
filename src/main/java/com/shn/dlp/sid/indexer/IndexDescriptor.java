@@ -9,6 +9,10 @@ public class IndexDescriptor {
 	private int numColumns;
 	private int numShards;
 	
+	public IndexDescriptor() {
+		
+	}
+	
 	public IndexDescriptor(int headerLength, int formatVersion, String algorithm, 
 			int termLength, int numRows, int numColumns, int numShards) {
 		super();

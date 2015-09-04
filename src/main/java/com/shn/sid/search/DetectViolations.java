@@ -50,8 +50,10 @@ public class DetectViolations {
 		List<Violation> violations = detector.findViolations(tokens, dv.colThreshold, dv.cviolationsThreshold);
 		detector.unloadIndex();
 		
-		for (Violation violation : violations) {
-			LOG.info("Found violation: " + violation);
+		if (violations != null) {
+			for (Violation violation : violations) {
+				LOG.info("Found violation: " + violation.toString());
+			}
 		}
 	}
 }
