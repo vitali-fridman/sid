@@ -34,7 +34,7 @@ public class Violation {
 	@Override
 	public String toString() {
 		StringBuilder sb= new StringBuilder();
-		sb.append("Violation \n");
+		sb.append("Violation of row " + this.row + "\n");
 		for (Token token : this.tokens) {
 			sb.append(" \t:").append(token.toString()).append("\n");
 		}

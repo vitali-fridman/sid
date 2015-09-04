@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.List;
 
+import org.apache.log4j.LogManager;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
@@ -55,5 +56,6 @@ public class DetectViolations {
 				LOG.info("Found violation: " + violation.toString());
 			}
 		}
+		LogManager.shutdown();
 	}
 }

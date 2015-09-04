@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -41,11 +40,11 @@ public class ViolationsDetector {
 
 	public List<Violation> findViolations(List<Token> tokens, int colThreashold, int violationsThreashold) {
 
-		List<Violation> violations = new LinkedList<Violation>();
-		List<Violation> candidateViolations = new LinkedList<Violation>();
+		List<Violation> violations = new ArrayList<Violation>();
+		List<Violation> candidateViolations = new ArrayList<Violation>();
 
-		List <SearchIndex.FirstSearchLookupResult> uncommonFirstSearchResults =  new LinkedList<SearchIndex.FirstSearchLookupResult>();
-		List <SearchIndex.FirstSearchLookupResult> commonFirstSearchResults =  new LinkedList<SearchIndex.FirstSearchLookupResult>();
+		List <SearchIndex.FirstSearchLookupResult> uncommonFirstSearchResults =  new ArrayList<SearchIndex.FirstSearchLookupResult>();
+		List <SearchIndex.FirstSearchLookupResult> commonFirstSearchResults =  new ArrayList<SearchIndex.FirstSearchLookupResult>();
 		int numCommon = 0;
 		int numUncommon = 0;
 		for (int i=0; i<tokens.size(); i++)  {
@@ -90,27 +89,49 @@ public class ViolationsDetector {
 			return violations;
 		}
 
+//		for (Violation candidateViolation : candidateViolations) {
+//			int row = candidateViolation.getRow();
+//			for (SearchIndex.FirstSearchLookupResult commonFirstSearcResult : commonFirstSearchResults) {
+//				Token commonToken = commonFirstSearcResult.getToken();
+//				if (this.index.secondSearch(row, commonToken)) {
+//					candidateViolation.addToken(commonToken);
+//					if (candidateViolation.numTokens() > colThreashold) {
+//						violations.add(candidateViolation);
+//						if (violations.size() >= violationsThreashold) {
+//							LOG.info("Found engougth violations while processing candidate rows, returning this list");
+//							return violations;
+//						}
+//					}
+//				}
+//			}
+//		}
+		
 		for (Violation candidateViolation : candidateViolations) {
-			int row = candidateViolation.getRow();
+			int candidateRow = candidateViolation.getRow();
+			ArrayList<Token> matchingCommonTokens = new ArrayList<Token>();
 			for (SearchIndex.FirstSearchLookupResult commonFirstSearcResult : commonFirstSearchResults) {
 				Token commonToken = commonFirstSearcResult.getToken();
-				if (this.index.secondSearch(row, commonToken)) {
-					candidateViolation.addToken(commonToken);
-					if (candidateViolation.numTokens() > colThreashold) {
-						violations.add(candidateViolation);
-						if (violations.size() >= violationsThreashold) {
-							LOG.info("Found engougth violations while processing candidate rows, returning this list");
-							return violations;
-						}
+				if (this.index.secondSearch(candidateRow, commonToken)) {
+					if (!matchingCommonTokens.contains(commonToken)) {
+						matchingCommonTokens.add(commonToken);
 					}
+				}
+			}
+			
+			if (candidateViolation.numTokens() + matchingCommonTokens.size() >= colThreashold) {
+				for (Token token : matchingCommonTokens) {
+					candidateViolation.addToken(token);
+				}
+				violations.add(candidateViolation);
+				if (violations.size() >= violationsThreashold) {
+					LOG.info("Added enough candidate violations, returining");
+					return violations;
 				}
 			}
 		}
 		
-		// LOG.info("Did not find enough violations, returning null");
-		// return null;
-		LOG.info("returing " + violations.size() + " violations");
-		return violations;
+		LOG.info("Did not find enough violations");
+		return null;
 	}
 
 	private Map<Integer, List<Token>> separateUncommonTermsPerRow(List<FirstSearchLookupResult> firstSearchResults) {
@@ -120,7 +141,7 @@ public class ViolationsDetector {
 			for (CellRowAndColMask entry : rows) {
 				List<Token> listOfTokens = perRowMap.get(entry.getRow());
 				if (listOfTokens == null) {
-					listOfTokens = new LinkedList<Token>();
+					listOfTokens = new ArrayList<Token>();
 				}
 				listOfTokens.add(result.getToken());
 				perRowMap.put(entry.getRow(), listOfTokens);
