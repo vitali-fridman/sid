@@ -195,17 +195,17 @@ public class CensusTestDataFileGenerator {
 		this.cryptoWriter.write(intToBytes(this.numRows));
 		this.cryptoWriter.write(this.numColumns);
 
-		if (this.clearWriter != null) {
-			this.clearWriter.write("Format Version: " + this.config.getCryptoFileFormatVersion());
-			this.clearWriter.newLine();
-			this.clearWriter.write("Crypto algprithm: " + config.getCryptoAlgorithmName());
-			this.clearWriter.write("Columns: " + this.numColumns);
-			this.clearWriter.newLine();
-			this.clearWriter.write("Rows: " + this.numRows);
-			this.clearWriter.newLine();
-			this.clearWriter.write("DATA:");
-			this.clearWriter.newLine();
-		}
+//		if (this.clearWriter != null) {
+//			this.clearWriter.write("Format Version: " + this.config.getCryptoFileFormatVersion());
+//			this.clearWriter.newLine();
+//			this.clearWriter.write("Crypto algprithm: " + config.getCryptoAlgorithmName());
+//			this.clearWriter.write("Columns: " + this.numColumns);
+//			this.clearWriter.newLine();
+//			this.clearWriter.write("Rows: " + this.numRows);
+//			this.clearWriter.newLine();
+//			this.clearWriter.write("DATA:");
+//			this.clearWriter.newLine();
+//		}
 	}
 
 	private void close() throws IOException {

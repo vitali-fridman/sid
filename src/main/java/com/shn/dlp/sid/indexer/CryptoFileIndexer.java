@@ -223,6 +223,7 @@ public class CryptoFileIndexer {
 			formatVersion = dis.readByte();
 			if (formatVersion != config.getCryptoFileFormatVersion()) {
 				LOG.error("Wrong crypto file format version");
+				LogManager.shutdown();
 				return -1;
 			}
 			byte[] alg = new byte[config.getCryptoFileHeaderAlgoritmNameLength()];
@@ -233,6 +234,7 @@ public class CryptoFileIndexer {
 			numColumns = dis.readByte();
 			if (numColumns < 1 || numColumns > 30) {
 				LOG.error("Number of columns is " + numColumns + " but it must be between 1 and 30");
+				LogManager.shutdown();
 				return -1;
 			}
 			long numbCells = (long)numColumns * (long)numRows;
@@ -250,9 +252,11 @@ public class CryptoFileIndexer {
 
 		} catch (FileNotFoundException e) {
 			LOG.error("Crypto File: " + cryptoFileName + " not found");
+			LogManager.shutdown();
 			return -1;
 		} catch (IOException e) {
 			LOG.error("Error reading header of Crypto File: " + cryptoFileName + e.getMessage());
+			LogManager.shutdown();
 			return -1;
 		} finally {
 			if (dis != null ) dis.close();

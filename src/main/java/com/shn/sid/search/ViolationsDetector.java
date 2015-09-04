@@ -72,7 +72,7 @@ public class ViolationsDetector {
 
 		Map<Integer, List<Token>> perRowMap = separateUncommonTermsPerRow(uncommonFirstSearchResults);
 
-		for (int row : perRowMap.keySet()) {
+ 		for (int row : perRowMap.keySet()) {
 			List<Token> tokensOnRow = perRowMap.get(row);	
 			Violation violation = new Violation(row);
 			for (Token token : tokensOnRow) {
@@ -85,7 +85,7 @@ public class ViolationsDetector {
 			}
 		}
 
-		if ((violations.size() > violationsThreashold )) {
+		if ((violations.size() >= violationsThreashold )) {
 			LOG.info("Found enough violation just in uncommon terms, returning this list");
 			return violations;
 		}
