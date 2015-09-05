@@ -58,7 +58,7 @@ public class SearchIndex {
 		this.descriptor = mapper.readValue(descriptorFile, IndexDescriptor.class);
 		this.numShards = descriptor.getNumShards();
 		File commonTermsDBfile = new File(indexDirectory + File.separator+ CryptoFileIndexer.COMMON_TERMS_DB_NAME);
-		this.commonTermsDB = DBMaker.fileDB(commonTermsDBfile).fileMmapEnable().readOnly().make();
+		this.commonTermsDB = DBMaker.fileDB(commonTermsDBfile).readOnly().make();
 		this.commonTermsMap = this.commonTermsDB.hashMap(CryptoFileIndexer.COMMON_TERMS_MAP_NAME, 
 				new TermAndRowSerializer(config), 
 				Serializer.INTEGER,
@@ -73,14 +73,14 @@ public class SearchIndex {
 		for (int i=0; i<this.numShards; i++) {
 			File unCommonTermsDBfile = new File(this.indexDirectory + File.separator + 
 					CryptoFileIndexerWorker.UNCOMMON_TERMS_DB_NAME + "." + i);
-			this.uncommonTermsDBs[i] = DBMaker.fileDB(unCommonTermsDBfile).fileMmapEnable().readOnly().make();
+			this.uncommonTermsDBs[i] = DBMaker.fileDB(unCommonTermsDBfile).readOnly().make();
 			this.unCommonTermsMaps.add(this.uncommonTermsDBs[i].hashMap(CryptoFileIndexerWorker.UNCOMMON_TERMS_MAP_NAME,
 					new RawTermSerializer(this.config),
 					new CellRowAndColMaskListSerializer(),
 					null));
 			File allCommonTermsDBfile = new File(this.indexDirectory + File.separator +
 					CryptoFileIndexerWorker.ALL_COMMON_TERMS_DB_NAME + "." + i);
-			this.allCmmonTermsDBs[i] = DBMaker.fileDB(allCommonTermsDBfile).fileMmapEnable().readOnly().make();
+			this.allCmmonTermsDBs[i] = DBMaker.fileDB(allCommonTermsDBfile).readOnly().make();
 			this.allCommonTermsMaps.add(this.allCmmonTermsDBs[i].hashMap(CryptoFileIndexerWorker.ALL_COMMON_TERMS_MAP_NAME, 
 					new RawTermSerializer(this.config), Serializer.INTEGER, null));
 		}
