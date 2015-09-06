@@ -46,10 +46,11 @@ public class DetectViolations {
 		TestLexer lexer = new TestLexer(config);
 		List<Token> tokens = lexer.scan(dv.fileName);
 		
-		int numIndexes = 50;
+		int numIndexes = 5;
 		ViolationsDetector[] detectors = new ViolationsDetector[numIndexes];
 		for(int i=0; i<numIndexes; i++) {
-			detectors[i] = new ViolationsDetector(config, dv.indexName);
+			// detectors[i] = new ViolationsDetector(config, dv.indexName);
+			detectors[i] = new ViolationsDetector(config, new Integer(i).toString());
 			detectors[i].loadIndex();
 		}
 		
@@ -58,15 +59,14 @@ public class DetectViolations {
 		List<Violation> violations = null;
 		start = System.nanoTime();
 		
-		int iterations = 100;
+		int iterations = 1000;
 		for (int j=0; j<iterations; j++) {
 			for (int i=0; i<numIndexes; i++) {
 				violations = detectors[i].findViolations(tokens, dv.colThreshold, dv.cviolationsThreshold);
 			}
 		}
 			
-		end = System.nanoTime();
-		LOG.info("Detection took " + (end-start)/1000000d/(double)(iterations*numIndexes) + " ms");
+		
 
 		for(int i=0; i<numIndexes; i++) {
 			detectors[i].unloadIndex();
@@ -77,6 +77,10 @@ public class DetectViolations {
 				LOG.info("Found violation: " + violation.toString());
 			}
 		}
+		
+		end = System.nanoTime();
+		LOG.info("Detection took " + (end-start)/1000000d/(double)(iterations*numIndexes) + " ms");
+		
 		LogManager.shutdown();
 	}
 }

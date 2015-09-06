@@ -79,15 +79,19 @@ public class ViolationsDetector {
 			}
 			if (violation.numTokens() >= colThreashold) {
 				violations.add(violation);
+				if ((violations.size() >= violationsThreashold )) {
+					LOG.debug("Found enough violation just in uncommon terms, returning this list");
+					return violations;
+				}
 			} else {
 				candidateViolations.add(violation);
 			}
 		}
 
-		if ((violations.size() >= violationsThreashold )) {
-			LOG.debug("Found enough violation just in uncommon terms, returning this list");
-			return violations;
-		}
+		// if ((violations.size() >= violationsThreashold )) {
+		//	LOG.debug("Found enough violation just in uncommon terms, returning this list");
+		// 	return violations;
+		// }
 		
 		for (Violation candidateViolation : candidateViolations) {
 			int candidateRow = candidateViolation.getRow();
