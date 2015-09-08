@@ -18,7 +18,7 @@ import com.shn.dlp.sid.lexer.TestLexer;
 import com.shn.dlp.sid.security.CryptoException;
 import com.shn.dlp.sid.util.SidConfiguration;
 
-public class DetectViolations {
+public class DetectViolationsPerfBenchmark {
 
 	@Option(name="-f",usage="File Name to read", required=true)
 	private String fileName;
@@ -32,7 +32,7 @@ public class DetectViolations {
 	private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 	
 	public static void main(String[] args) throws IOException, CryptoException {
-		DetectViolations dv = new DetectViolations();
+		DetectViolationsPerfBenchmark dv = new DetectViolationsPerfBenchmark();
 		CmdLineParser parser = new CmdLineParser(dv);
 		try {
 			parser.parseArgument(args);
@@ -46,8 +46,13 @@ public class DetectViolations {
 		TestLexer lexer = new TestLexer(config);
 		List<Token> tokens = lexer.scan(dv.fileName);
 		
-		ViolationsDetector detector = new ViolationsDetector(config, dv.indexName);
-		detector.loadIndex();
+		int numIndexes = 5;
+		ViolationsDetector[] detectors = new ViolationsDetector[numIndexes];
+		for(int i=0; i<numIndexes; i++) {
+			// detectors[i] = new ViolationsDetector(config, dv.indexName);
+			detectors[i] = new ViolationsDetector(config, new Integer(i).toString());
+			detectors[i].loadIndex();
+		}
 		
 		long start = 0;
 		long end = 0;
@@ -56,10 +61,16 @@ public class DetectViolations {
 		
 		int iterations = 1000;
 		for (int j=0; j<iterations; j++) {
-				violations = detector.findViolations(tokens, dv.colThreshold, dv.cviolationsThreshold);
+			for (int i=0; i<numIndexes; i++) {
+				violations = detectors[i].findViolations(tokens, dv.colThreshold, dv.cviolationsThreshold);
+			}
 		}
 			
-		detector.unloadIndex();
+		
+
+		for(int i=0; i<numIndexes; i++) {
+			detectors[i].unloadIndex();
+		}
 		
 		if (violations != null) {
 			for (Violation violation : violations) {
@@ -68,7 +79,7 @@ public class DetectViolations {
 		}
 		
 		end = System.nanoTime();
-		LOG.info("Detection took " + (end-start)/1000000d/(double)(iterations) + " ms");
+		LOG.info("Detection took " + (end-start)/1000000d/(double)(iterations*numIndexes) + " ms");
 		
 		LogManager.shutdown();
 	}
