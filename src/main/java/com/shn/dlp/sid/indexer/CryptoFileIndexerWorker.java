@@ -27,6 +27,10 @@ import com.shn.dlp.sid.entries.RawTermSerializer;
 import com.shn.dlp.sid.entries.TermAndRow;
 import com.shn.dlp.sid.security.CryptoException;
 import com.shn.dlp.sid.util.SidConfiguration;
+import static com.shn.dlp.sid.indexer.IndexComponents.UNCOMMON_TERMS_DB_NAME;
+import static com.shn.dlp.sid.indexer.IndexComponents.UNCOMMON_TERMS_MAP_NAME;
+import static com.shn.dlp.sid.indexer.IndexComponents.COMMON_TERMS_DB_NAME;
+import static com.shn.dlp.sid.indexer.IndexComponents.COMMON_TERMS_MAP_NAME;
 
 public class CryptoFileIndexerWorker implements Callable<Boolean> {
 
@@ -37,15 +41,11 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 	private final String cryptoFileName;
 	private final int numberOfShards;
 	private final int shardNumber;
-	public final static String UNCOMMON_TERMS_MAP_NAME = "UncommonTermsMap";
-	public final static String UNCOMMON_TERMS_DB_NAME = "UncommonTermsDB";
-	public final static String ALL_COMMON_TERMS_MAP_NAME = "AllCommonTermsMap";
-	public final static String ALL_COMMON_TERMS_DB_NAME = "AllConmmonTermsDB";
 	private DB uncommonTermsDB;
 	private HTreeMap<RawTerm, ArrayList<CellRowAndColMask>> unCommonTermsMap;
-	private DB allCommonTermsDB;
-	private HTreeMap<RawTerm, Integer> allCommonTermsMap;
-	private final HTreeMap<TermAndRow, Integer> commonTermsMap;
+	private DB commonTermsDB;
+	private HTreeMap<RawTerm, Integer> commonTermsMap;
+	private final HTreeMap<TermAndRow, Integer> commonTermsAndRowMap;
 	
 	
 	public CryptoFileIndexerWorker(SidConfiguration config, String fileName, 
@@ -54,7 +54,7 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 		this.cryptoFileName = fileName;
 		this.shardNumber = shardNumber;
 		this.numberOfShards = numberOfShards;
-		this.commonTermsMap = commonTermsMap;
+		this.commonTermsAndRowMap = commonTermsMap;
 	}
 
 	@Override
@@ -80,7 +80,7 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 		try {
 			readCryptoData(file, this.numberOfShards, this.shardNumber);
 			moveCommonTerms();
-			LOG.info("For shard# " + this.shardNumber + " " + "found " + this.allCommonTermsMap.size() + " common terms");
+			LOG.info("For shard# " + this.shardNumber + " " + "found " + this.commonTermsMap.size() + " common terms");
 		} catch (IOException e) {
 			LOG.error("Error creating index for shard# " + this.shardNumber);
 			LOG.error(e.getMessage());
@@ -91,8 +91,8 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 		
 		this.uncommonTermsDB.commit();
 		this.uncommonTermsDB.close();
-		this.allCommonTermsDB.commit();
-		this.allCommonTermsDB.close();
+		this.commonTermsDB.commit();
+		this.commonTermsDB.close();
 		
 		return true; 
 	}
@@ -116,9 +116,9 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 				int combinedMask = 0;
 				for (CellRowAndColMask location : locations) {
 					combinedMask = combinedMask | (1 << location.getMask());
-					this.commonTermsMap.put(new TermAndRow(term, location.getRow()), location.getMask());
+					this.commonTermsAndRowMap.put(new TermAndRow(term, location.getRow()), location.getMask());
 				}
-				this.allCommonTermsMap.put(entry.getKey(), combinedMask);
+				this.commonTermsMap.put(entry.getKey(), combinedMask);
 				this.unCommonTermsMap.remove(term);
 				i++;
 			}
@@ -129,7 +129,7 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 		
 		File uncommonTermsDBfile = new File(dbDirectoryName + "/" + UNCOMMON_TERMS_DB_NAME + "." + shardNumber);
 		FileUtils.deleteQuietly(uncommonTermsDBfile);
-		File allCommonTermsDBfile = new File(dbDirectoryName + "/" + ALL_COMMON_TERMS_DB_NAME + "." + shardNumber);
+		File allCommonTermsDBfile = new File(dbDirectoryName + "/" + COMMON_TERMS_DB_NAME + "." + shardNumber);
 		FileUtils.deleteQuietly(allCommonTermsDBfile);
 		
 			this.uncommonTermsDB = DBMaker.fileDB(uncommonTermsDBfile).
@@ -144,7 +144,7 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 					metricsEnable().
 					make();
 			
-			this.allCommonTermsDB = DBMaker.fileDB(allCommonTermsDBfile).
+			this.commonTermsDB = DBMaker.fileDB(allCommonTermsDBfile).
 					transactionDisable().
 					closeOnJvmShutdown().  
 					fileMmapEnable().
@@ -167,8 +167,8 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 	}
 	
 	private void  createAllCommonTermsMap() throws CryptoException {
-		this.allCommonTermsMap =
-		this.allCommonTermsDB.hashMapCreate(ALL_COMMON_TERMS_MAP_NAME).
+		this.commonTermsMap =
+		this.commonTermsDB.hashMapCreate(COMMON_TERMS_MAP_NAME).
 			valueSerializer(Serializer.INTEGER).
 			keySerializer(new RawTermSerializer(this.config)).
 			counterEnable().					

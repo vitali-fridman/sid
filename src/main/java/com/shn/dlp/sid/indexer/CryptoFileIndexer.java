@@ -39,6 +39,9 @@ import com.shn.dlp.sid.security.Crypter;
 import com.shn.dlp.sid.security.CryptoException;
 import com.shn.dlp.sid.util.PeriodicGarbageCollector;
 import com.shn.dlp.sid.util.SidConfiguration;
+import static com.shn.dlp.sid.indexer.IndexComponents.COMMON_TERMS_AND_ROW_DB_NAME;
+import static com.shn.dlp.sid.indexer.IndexComponents.COMMON_TERMS_AND_ROW_MAP_NAME;
+import static com.shn.dlp.sid.indexer.IndexComponents.DESCRIPTOR_FILE_NAME;
 
 public class CryptoFileIndexer {
 
@@ -49,11 +52,8 @@ public class CryptoFileIndexer {
 
 	private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());  
 
-	public final static String COMMON_TERMS_MAP_NAME = "CommonTermsMap";
-	public final static String COMMON_TERMS_DB_NAME = "ConmmonTermsDB";
-	public final static String DESCRIPTOR_FILE_NAME = "IndexDescriptor";
-	private static DB commonTermsDB;
-	private static HTreeMap<TermAndRow, Integer> commonTermsMap;
+	private static DB commonTermsAndRowDB;
+	private static HTreeMap<TermAndRow, Integer> commonTermsAndRowMap;
 	private static int headerLength;
 	private static int formatVersion;
 	private static String algorithm;
@@ -116,7 +116,7 @@ public class CryptoFileIndexer {
 		List<Future<Boolean>> results = new ArrayList<>();
 
 		for (int i = 0; i < numShards; i++) {
-			Callable<Boolean> worker = new CryptoFileIndexerWorker(config, fileToIndex, numShards, commonTermsMap, i);
+			Callable<Boolean> worker = new CryptoFileIndexerWorker(config, fileToIndex, numShards, commonTermsAndRowMap, i);
 			Future<Boolean> result = executor.submit(worker);
 			results.add(result);
 		}
@@ -159,11 +159,16 @@ public class CryptoFileIndexer {
 
 		closeCommonTermsDB();
 		
+		writeDescriptorFile(tempDirectory);
+		
+		IndexFilterCreator filterCreator = new IndexFilterCreator(config, cfr.fileName);
+		filterCreator.createFilters();
+		
 		String indexDirectory = config.getIndexesDirectory() + File.separator + cfr.fileName;
 		FileUtils.deleteQuietly(new File(indexDirectory));
 		FileUtils.moveDirectory(new File(tempDirectory), new File(indexDirectory));
 		
-		writeDescriptorFile(indexDirectory);
+
 
 		long end = System.nanoTime();
 		if (!fail) {
@@ -184,16 +189,16 @@ public class CryptoFileIndexer {
 	}
 
 	private static void closeCommonTermsDB() {
-		commonTermsDB.commit();
-		commonTermsDB.compact();
-		commonTermsDB.close();
+		commonTermsAndRowDB.commit();
+		commonTermsAndRowDB.compact();
+		commonTermsAndRowDB.close();
 	}
 
 	private static void createCommonTermsDBandMap(SidConfiguration config) throws CryptoException {
-		File commonTermsDBfile = new File(config.getIndexerTempDirectory() + "/" + COMMON_TERMS_DB_NAME);
+		File commonTermsDBfile = new File(config.getIndexerTempDirectory() + "/" + COMMON_TERMS_AND_ROW_DB_NAME);
 		FileUtils.deleteQuietly(commonTermsDBfile);
 
-		commonTermsDB = DBMaker.fileDB(commonTermsDBfile).
+		commonTermsAndRowDB = DBMaker.fileDB(commonTermsDBfile).
 				transactionDisable().
 				closeOnJvmShutdown().  
 				fileMmapEnable().
@@ -205,8 +210,8 @@ public class CryptoFileIndexer {
 				metricsEnable().
 				make();
 		
-		commonTermsMap =
-				commonTermsDB.hashMapCreate(COMMON_TERMS_MAP_NAME).
+		commonTermsAndRowMap =
+				commonTermsAndRowDB.hashMapCreate(COMMON_TERMS_AND_ROW_MAP_NAME).
 					valueSerializer(Serializer.INTEGER).
 					keySerializer(new TermAndRowSerializer(config)).
 					counterEnable().					

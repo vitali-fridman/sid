@@ -27,7 +27,7 @@ public class ViolationsDetector {
 
 	public ViolationsDetector(SidConfiguration config, String indexName) {
 		this.config = config;
-		this.index = new SearchIndex(config, indexName);
+		this.index = new SearchIndex(config, indexName, false);
 	}
 	
 	public void loadIndex() throws JsonParseException, JsonMappingException, IOException, CryptoException {

@@ -1,8 +1,18 @@
 package com.shn.sid.search;
 
+import static com.shn.dlp.sid.indexer.IndexComponents.COMMON_TERMS_AND_ROW_DB_NAME;
+import static com.shn.dlp.sid.indexer.IndexComponents.COMMON_TERMS_AND_ROW_MAP_NAME;
+import static com.shn.dlp.sid.indexer.IndexComponents.COMMON_TERMS_DB_NAME;
+import static com.shn.dlp.sid.indexer.IndexComponents.COMMON_TERMS_MAP_NAME;
+import static com.shn.dlp.sid.indexer.IndexComponents.DESCRIPTOR_FILE_NAME;
+import static com.shn.dlp.sid.indexer.IndexComponents.UNCOMMON_TERMS_DB_NAME;
+import static com.shn.dlp.sid.indexer.IndexComponents.UNCOMMON_TERMS_MAP_NAME;
+
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
 
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
@@ -12,6 +22,7 @@ import org.mapdb.Serializer;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.Iterators;
 import com.shn.dlp.sid.entries.CellRowAndColMask;
 import com.shn.dlp.sid.entries.CellRowAndColMaskListSerializer;
 import com.shn.dlp.sid.entries.RawTerm;
@@ -19,9 +30,6 @@ import com.shn.dlp.sid.entries.RawTermSerializer;
 import com.shn.dlp.sid.entries.TermAndRow;
 import com.shn.dlp.sid.entries.TermAndRowSerializer;
 import com.shn.dlp.sid.entries.Token;
-import com.shn.dlp.sid.entries.Token.Presense;
-import com.shn.dlp.sid.indexer.CryptoFileIndexer;
-import com.shn.dlp.sid.indexer.CryptoFileIndexerWorker;
 import com.shn.dlp.sid.indexer.IndexDescriptor;
 import com.shn.dlp.sid.security.CryptoException;
 import com.shn.dlp.sid.util.SidConfiguration;
@@ -33,72 +41,94 @@ public class SearchIndex {
 	private IndexDescriptor descriptor;
 	private final String indexDirectory;
 	private int numShards;
-	private DB commonTermsDB;
-	private HTreeMap<TermAndRow, Integer> commonTermsMap;
+	private DB commonTermsAndRowDB;
+	private HTreeMap<TermAndRow, Integer> commonTermsAndRowMap;
 	private DB[] uncommonTermsDBs;
 	private ArrayList<HTreeMap<RawTerm, ArrayList<CellRowAndColMask>>>  unCommonTermsMaps;
-	private DB[] allCmmonTermsDBs;
-	private ArrayList<HTreeMap<RawTerm, Integer>> allCommonTermsMaps;
+	private DB[] cmmonTermsDBs;
+	private ArrayList<HTreeMap<RawTerm, Integer>> commonTermsMaps;
 	public enum TokenPresense {COMMON, UNCOMMON};
+	private volatile boolean isOpen;
 	
 	
-	public SearchIndex(SidConfiguration config, String indexName) {
+	public SearchIndex(SidConfiguration config, String indexName, boolean inTemporaryIndexDirectory) {
 		this.config = config;
 		this.indexName = indexName;
-		this.indexDirectory = config.getIndexesDirectory() + File.separator + indexName;
+		if (!inTemporaryIndexDirectory) {
+			this.indexDirectory = config.getIndexesDirectory() + File.separator + indexName;
+		} else {
+			this.indexDirectory = config.getIndexerTempDirectory();
+		}
+		this.isOpen = false;
 	}
 
 	public String getIndexName() {
 		return indexName;
 	}
 	
-	public void openIndex() throws JsonParseException, JsonMappingException, IOException, CryptoException {
-		File descriptorFile = new File(indexDirectory + File.separator + CryptoFileIndexer.DESCRIPTOR_FILE_NAME);
+	public boolean isOpen() {
+		return this.isOpen;
+	}
+	
+	public synchronized void openIndex() throws JsonParseException, JsonMappingException, IOException, CryptoException {
+		if (this.isOpen) {
+			throw new IllegalStateException("Index " + this.indexName + " is already open");
+		}
+		
+		File descriptorFile = new File(indexDirectory + File.separator + DESCRIPTOR_FILE_NAME);
 		ObjectMapper mapper = new ObjectMapper();
 		this.descriptor = mapper.readValue(descriptorFile, IndexDescriptor.class);
 		this.numShards = descriptor.getNumShards();
-		File commonTermsDBfile = new File(indexDirectory + File.separator+ CryptoFileIndexer.COMMON_TERMS_DB_NAME);
-		this.commonTermsDB = DBMaker.fileDB(commonTermsDBfile).readOnly().make();
-		this.commonTermsMap = this.commonTermsDB.hashMap(CryptoFileIndexer.COMMON_TERMS_MAP_NAME, 
+		File commonTermsAndRowDBfile = new File(indexDirectory + File.separator+ COMMON_TERMS_AND_ROW_DB_NAME);
+		this.commonTermsAndRowDB = DBMaker.fileDB(commonTermsAndRowDBfile).readOnly().make();
+		this.commonTermsAndRowMap = this.commonTermsAndRowDB.hashMap(COMMON_TERMS_AND_ROW_MAP_NAME, 
 				new TermAndRowSerializer(config), 
 				Serializer.INTEGER,
 				null);
 		
 		this.uncommonTermsDBs = new DB[this.numShards];
-		this.allCmmonTermsDBs = new DB[this.numShards];
+		this.cmmonTermsDBs = new DB[this.numShards];
 		this.unCommonTermsMaps = new ArrayList<HTreeMap<RawTerm, ArrayList<CellRowAndColMask>>>();
-		this.allCommonTermsMaps = new ArrayList<HTreeMap<RawTerm, Integer>>();
+		this.commonTermsMaps = new ArrayList<HTreeMap<RawTerm, Integer>>();
 		
 		
 		for (int i=0; i<this.numShards; i++) {
 			File unCommonTermsDBfile = new File(this.indexDirectory + File.separator + 
-					CryptoFileIndexerWorker.UNCOMMON_TERMS_DB_NAME + "." + i);
+					UNCOMMON_TERMS_DB_NAME + "." + i);
 			this.uncommonTermsDBs[i] = DBMaker.fileDB(unCommonTermsDBfile).readOnly().make();
-			this.unCommonTermsMaps.add(this.uncommonTermsDBs[i].hashMap(CryptoFileIndexerWorker.UNCOMMON_TERMS_MAP_NAME,
+			this.unCommonTermsMaps.add(this.uncommonTermsDBs[i].hashMap(UNCOMMON_TERMS_MAP_NAME,
 					new RawTermSerializer(this.config),
 					new CellRowAndColMaskListSerializer(),
 					null));
 			File allCommonTermsDBfile = new File(this.indexDirectory + File.separator +
-					CryptoFileIndexerWorker.ALL_COMMON_TERMS_DB_NAME + "." + i);
-			this.allCmmonTermsDBs[i] = DBMaker.fileDB(allCommonTermsDBfile).readOnly().make();
-			this.allCommonTermsMaps.add(this.allCmmonTermsDBs[i].hashMap(CryptoFileIndexerWorker.ALL_COMMON_TERMS_MAP_NAME, 
+					COMMON_TERMS_DB_NAME + "." + i);
+			this.cmmonTermsDBs[i] = DBMaker.fileDB(allCommonTermsDBfile).readOnly().make();
+			this.commonTermsMaps.add(this.cmmonTermsDBs[i].hashMap(COMMON_TERMS_MAP_NAME, 
 					new RawTermSerializer(this.config), Serializer.INTEGER, null));
 		}
-		
+		this.isOpen = true;
 	}
 	
-	public void closeIndex() {
-		this.commonTermsDB.close();
+	public synchronized void closeIndex() {
+		if (!this.isOpen) {
+			throw new IllegalStateException("Index " + this.indexName + " is already closed");
+		}
+		this.isOpen = false;
+		this.commonTermsAndRowDB.close();
 		for (int i=0; i<this.numShards; i++) {
 			this.uncommonTermsDBs[i].close();
-			this.allCmmonTermsDBs[i].close();
+			this.cmmonTermsDBs[i].close();
 		}
 	}
 	
 	public FirstSearchLookupResult firstSearch(Token token) {
+		if (!this.isOpen) {
+			throw new IllegalStateException("Index " + this.indexName + " is not open");
+		}
+		
 		FirstSearchLookupResult result = new FirstSearchLookupResult();
 		int shardNumber = calculateShard(token);
-		HTreeMap<RawTerm, Integer> allCommonTermsMap = this.allCommonTermsMaps.get(shardNumber);
+		HTreeMap<RawTerm, Integer> allCommonTermsMap = this.commonTermsMaps.get(shardNumber);
 		Integer commonTermColMask = allCommonTermsMap.get(token.getTerm());
 		result.token = token;
 		if (commonTermColMask != null) {
@@ -118,7 +148,11 @@ public class SearchIndex {
 	}
 
 	public boolean secondSearch(int row, Token token) {
-		Integer colMask = commonTermsMap.get(new TermAndRow(token.getTerm(), row));
+		if (!this.isOpen) {
+			throw new IllegalStateException("Index " + this.indexName + " is not open");
+		}
+		
+		Integer colMask = commonTermsAndRowMap.get(new TermAndRow(token.getTerm(), row));
 		if (colMask != null) {
 			return true;
 		} else {
@@ -127,6 +161,10 @@ public class SearchIndex {
 	}
 	
 	private int calculateShard(Token token) {
+		if (!this.isOpen) {
+			throw new IllegalStateException("Index " + this.indexName + " is not open");
+		}
+		
 		RawTerm rt = token.getTerm();
 		int hash = rt.hashCode();
 		int positiveHash = (hash < 0 ? -hash : hash);
@@ -163,5 +201,52 @@ public class SearchIndex {
 		private ArrayList<CellRowAndColMask> cellRowAndColMask;
 		private Token token;
 	}
-
+	
+	public int getUncommonEntriesCount() {
+		if (!this.isOpen) {
+			throw new IllegalStateException("Index " + this.indexName + " is not open");
+		}
+		
+		long totalCount = 0;
+		for (HTreeMap<?, ?> map : unCommonTermsMaps) {
+			totalCount += map.mappingCount();
+		}
+		return (int) totalCount;
+	}
+	
+	public int getCommonEntriesCount() {
+		if (!this.isOpen) {
+			throw new IllegalStateException("Index " + this.indexName + " is not open");
+		}
+		
+		long totalCount = 0;
+		for (HTreeMap<?, ?> map : commonTermsMaps) {
+			totalCount += map.mappingCount();
+		}
+		return (int) totalCount;
+	}
+	
+	public Iterator<RawTerm> getUncommonEntriesIterator() {	
+		if (!this.isOpen) {
+			throw new IllegalStateException("Index " + this.indexName + " is not open");
+		}
+		
+		Iterator<RawTerm> allIterator = Collections.emptyIterator();
+		for (HTreeMap<RawTerm, ?> map : this.unCommonTermsMaps) {
+			allIterator = Iterators.concat(allIterator, map.keySet().iterator());
+		}
+		return allIterator;	
+	}
+	
+	public Iterator<RawTerm> getCommonEntriesIterator() {
+		if (!this.isOpen) {
+			throw new IllegalStateException("Index " + this.indexName + " is not open");
+		}
+		
+		Iterator<RawTerm> allIterator = Collections.emptyIterator();
+		for (HTreeMap<RawTerm, ?> map : this.commonTermsMaps) {
+			allIterator = Iterators.concat(allIterator, map.keySet().iterator());
+		}
+		return allIterator;
+	}
 }

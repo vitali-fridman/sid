@@ -71,6 +71,9 @@ public class SidConfiguration {
 	private final static String GRAMAR_FILES_DIR_DEFAULT = "grammar";
 	private final static String GRAMAR_FILES_DIR_PROP = "sid.GrammarFilesDirectory";
 	
+	private final static double INDEXER_BLOOM_FILTER_FPP_DEFAULT = 0.001;
+	private final static String INDEXER_BLOOM_FILTER_FPP_PROPERTY = "sid.indexer.bloomFilterFPP";
+	
 	
 	public SidConfiguration (String propertiesFileName) throws FileNotFoundException, IOException {
 		this.properties = new Properties();
@@ -161,6 +164,10 @@ public class SidConfiguration {
 	
 	public int getCommonalityThreashold() {
 		return getIntProperty(TERM_COMMONALITY_THREASHOLD_PROP, TERM_COMMONALITY_THREASHOLD_DEFAULT);
+	}
+	
+	public double getBloomFilterFPP() {
+		return getDoubleProperty(INDEXER_BLOOM_FILTER_FPP_PROPERTY, INDEXER_BLOOM_FILTER_FPP_DEFAULT);
 	}
 	
 	private String getStringProperty (String name, String defaultValue) {
