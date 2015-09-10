@@ -1,9 +1,14 @@
 package com.shn.dlp.sid.entries;
 
+import com.google.common.hash.HashFunction;
+import com.google.common.hash.Hasher;
+import com.google.common.hash.Hashing;
+
 public class TermAndRow implements Comparable {
 	
 	private final RawTerm term;
 	private final int row;
+	private final static HashFunction HASH_FUNCTION = Hashing.murmur3_32(0);
 	
 	public TermAndRow (RawTerm term, int row) {
 		this.term = term;
@@ -20,7 +25,8 @@ public class TermAndRow implements Comparable {
 	
 	@Override
 	public int hashCode() {
-		return this.term.hashCode() + row;
+		return HASH_FUNCTION.newHasher().putObject(this, TermAndRowFunnel.INSTANCE).hash().asInt();
+		// return this.term.hashCode() + row;
 	}
 
 	@Override

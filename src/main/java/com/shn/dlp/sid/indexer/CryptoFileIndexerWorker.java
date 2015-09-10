@@ -149,7 +149,7 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 
 		BufferedOutputStream out = new BufferedOutputStream(new FileOutputStream(filterFileName));
 		filter.writeTo(out);
-
+		out.close();
 	}
 
 	private void moveCommonTerms() throws InterruptedException {

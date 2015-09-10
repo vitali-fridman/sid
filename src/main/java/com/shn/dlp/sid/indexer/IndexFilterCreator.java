@@ -96,6 +96,7 @@ public class IndexFilterCreator {
 		BloomFilter<TermAndRow> filter = BloomFilter.create(TermAndRowFunnel.INSTANCE,  numEntries, filterFPP);
 		
 		int count = 0;
+		LOG.info("Adding " + String.format("%,d", numEntries) + " entries to TermAndRow Filter.");
 		for (TermAndRow entry : entries) {
 			filter.put(entry);
 			if (count%100000 == 0) {
@@ -106,7 +107,7 @@ public class IndexFilterCreator {
 		String filterFileName = this.indexDirectory + TERM_AND_ROW_FILTER_FILE_NAME;
 		BufferedOutputStream out = new BufferedOutputStream(new FileOutputStream(filterFileName));
 		filter.writeTo(out);
-		
+		out.close();
 		commonTermsAndRowDB.close();
 	}
 }
