@@ -1,13 +1,16 @@
 package com.shn.dlp.sid.indexer;
 
 import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.Map.Entry;
 import java.util.concurrent.Callable;
 
@@ -19,10 +22,12 @@ import org.mapdb.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.hash.BloomFilter;
 import com.shn.dlp.sid.entries.Cell;
 import com.shn.dlp.sid.entries.CellRowAndColMask;
 import com.shn.dlp.sid.entries.CellRowAndColMaskListSerializer;
 import com.shn.dlp.sid.entries.RawTerm;
+import com.shn.dlp.sid.entries.RawTermFunnel;
 import com.shn.dlp.sid.entries.RawTermSerializer;
 import com.shn.dlp.sid.entries.TermAndRow;
 import com.shn.dlp.sid.security.CryptoException;
@@ -31,12 +36,14 @@ import static com.shn.dlp.sid.indexer.IndexComponents.UNCOMMON_TERMS_DB_NAME;
 import static com.shn.dlp.sid.indexer.IndexComponents.UNCOMMON_TERMS_MAP_NAME;
 import static com.shn.dlp.sid.indexer.IndexComponents.COMMON_TERMS_DB_NAME;
 import static com.shn.dlp.sid.indexer.IndexComponents.COMMON_TERMS_MAP_NAME;
+import static com.shn.dlp.sid.indexer.IndexComponents.COMMON_TERMS_FILTER_FILE_NAME;
+import static com.shn.dlp.sid.indexer.IndexComponents.UNCOMMON_TERMS_FILTER_FILE_NAME;
 
 public class CryptoFileIndexerWorker implements Callable<Boolean> {
 
-	
+
 	private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());  
-	
+
 	private SidConfiguration config;
 	private final String cryptoFileName;
 	private final int numberOfShards;
@@ -46,8 +53,8 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 	private DB commonTermsDB;
 	private HTreeMap<RawTerm, Integer> commonTermsMap;
 	private final HTreeMap<TermAndRow, Integer> commonTermsAndRowMap;
-	
-	
+
+
 	public CryptoFileIndexerWorker(SidConfiguration config, String fileName, 
 			int numberOfShards, HTreeMap<TermAndRow, Integer> commonTermsMap, int shardNumber) {
 		this.config = config;
@@ -59,7 +66,7 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 
 	@Override
 	public Boolean call() {
-		
+
 		File file = new File(this.cryptoFileName);
 		this.uncommonTermsDB = null;
 		try {
@@ -69,44 +76,92 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 			LOG.error(e.getMessage());
 			return false;
 		}
-		
+
 		try {
-			createUncommonTermsMap();
-			createAllCommonTermsMap();
-		} catch (CryptoException e) {
-			LOG.error("Error creating dbmap", e);
-			return false;
+			try {
+				createUncommonTermsMap();
+				createAllCommonTermsMap();
+			} catch (CryptoException e) {
+				LOG.error("Error creating dbmap", e);
+				return false;
+			}
+			try {
+				readCryptoData(file, this.numberOfShards, this.shardNumber);
+				moveCommonTerms();
+				LOG.info("For shard# " + this.shardNumber + " " + "found " + this.commonTermsMap.size() + " common terms");
+			} catch (IOException e) {
+				LOG.error("Error creating index for shard# " + this.shardNumber);
+				LOG.error(e.getMessage());
+				return false;
+			} catch (InterruptedException e) {
+				return false;
+			}
+
+			this.uncommonTermsDB.commit();
+			this.commonTermsDB.commit();
+
+			try {
+				createFilters();
+			} catch (IOException e) {
+				LOG.error("Error creating filters for shard# " + this.shardNumber);
+				return false;
+			}
+		} finally {
+			this.commonTermsDB.close();
+			this.uncommonTermsDB.close();
 		}
-		try {
-			readCryptoData(file, this.numberOfShards, this.shardNumber);
-			moveCommonTerms();
-			LOG.info("For shard# " + this.shardNumber + " " + "found " + this.commonTermsMap.size() + " common terms");
-		} catch (IOException e) {
-			LOG.error("Error creating index for shard# " + this.shardNumber);
-			LOG.error(e.getMessage());
-			return false;
-		} catch (InterruptedException e) {
-			return false;
-		}
-		
-		this.uncommonTermsDB.commit();
-		this.uncommonTermsDB.close();
-		this.commonTermsDB.commit();
-		this.commonTermsDB.close();
-		
+
 		return true; 
 	}
-	
+
+	private void createFilters() throws IOException {
+		String uncommonTermsFilterFile = config.getIndexerTempDirectory() + File.separator + 
+				UNCOMMON_TERMS_FILTER_FILE_NAME + "." + this.shardNumber;
+		createTermsFilter(uncommonTermsFilterFile, 
+				(int) this.unCommonTermsMap.mappingCount(), 
+				this.unCommonTermsMap.keySet().iterator());
+		String commonTermsFilterFile = config.getIndexerTempDirectory() + File.separator + 
+				COMMON_TERMS_FILTER_FILE_NAME + "." + this.shardNumber;
+		createTermsFilter(commonTermsFilterFile, 
+				(int) this.commonTermsMap.mappingCount(), 
+				this.commonTermsMap.keySet().iterator());
+
+	}
+
+	private void createTermsFilter(String filterFileName, int numEntries, 
+			Iterator<RawTerm> termsIterator) 
+					throws IOException {
+
+		double filterFPP = this.config.getBloomFilterFPP();
+
+		LOG.info("For " + filterFileName + " number of entries is: " + String.format("%,d", numEntries));
+
+		BloomFilter<RawTerm> filter = BloomFilter.create(RawTermFunnel.INSTANCE, numEntries, filterFPP);
+
+		int count = 0;
+		while (termsIterator.hasNext()) {
+			filter.put(termsIterator.next());
+			if (count%100000 == 0) {
+				LOG.info("Adding entry# " + String.format("%,d", count) + " to " + filterFileName + " Filter.");
+			}
+			count++;
+		}
+
+		BufferedOutputStream out = new BufferedOutputStream(new FileOutputStream(filterFileName));
+		filter.writeTo(out);
+
+	}
+
 	private void moveCommonTerms() throws InterruptedException {
 		int commonalityThreashold = this.config.getCommonalityThreashold();
 		int i=0;
 		for (Entry<RawTerm, ArrayList<CellRowAndColMask>> entry : this.unCommonTermsMap.entrySet()) {
-			
+
 			if (Thread.interrupted()) {
 				LOG.warn("Indexer Worker has been interrupted and will exit");
-					throw new InterruptedException();
+				throw new InterruptedException();
 			}
-			
+
 			RawTerm term = entry.getKey();
 			ArrayList<CellRowAndColMask> locations = entry.getValue();
 			if (locations.size() > commonalityThreashold) {
@@ -124,55 +179,55 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 			}
 		}
 	}
-	
+
 	private  void createDB(String dbDirectoryName, int shardNumber) throws IOException {
-		
+
 		File uncommonTermsDBfile = new File(dbDirectoryName + "/" + UNCOMMON_TERMS_DB_NAME + "." + shardNumber);
 		FileUtils.deleteQuietly(uncommonTermsDBfile);
 		File allCommonTermsDBfile = new File(dbDirectoryName + "/" + COMMON_TERMS_DB_NAME + "." + shardNumber);
 		FileUtils.deleteQuietly(allCommonTermsDBfile);
-		
-			this.uncommonTermsDB = DBMaker.fileDB(uncommonTermsDBfile).
-					transactionDisable().
-					closeOnJvmShutdown().  
-					fileMmapEnable().
-					asyncWriteEnable().
-					asyncWriteFlushDelay(config.getIndexerAsyncWriteFlushDelay()).
-					asyncWriteQueueSize(config.getIndexerAsyncWriteQueueSize()).
-					allocateStartSize(config.getIndexerMapDbSizeIncrement()).
-					allocateIncrement(config.getIndexerMapDbSizeIncrement()).
-					metricsEnable().
-					make();
-			
-			this.commonTermsDB = DBMaker.fileDB(allCommonTermsDBfile).
-					transactionDisable().
-					closeOnJvmShutdown().  
-					fileMmapEnable().
-					asyncWriteEnable().
-					asyncWriteFlushDelay(config.getIndexerAsyncWriteFlushDelay()).
-					asyncWriteQueueSize(config.getIndexerAsyncWriteQueueSize()).
-					allocateStartSize(config.getIndexerMapDbSizeIncrement()).
-					allocateIncrement(config.getIndexerMapDbSizeIncrement()).
-					metricsEnable().
-					make();
+
+		this.uncommonTermsDB = DBMaker.fileDB(uncommonTermsDBfile).
+				transactionDisable().
+				closeOnJvmShutdown().  
+				fileMmapEnable().
+				asyncWriteEnable().
+				asyncWriteFlushDelay(config.getIndexerAsyncWriteFlushDelay()).
+				asyncWriteQueueSize(config.getIndexerAsyncWriteQueueSize()).
+				allocateStartSize(config.getIndexerMapDbSizeIncrement()).
+				allocateIncrement(config.getIndexerMapDbSizeIncrement()).
+				metricsEnable().
+				make();
+
+		this.commonTermsDB = DBMaker.fileDB(allCommonTermsDBfile).
+				transactionDisable().
+				closeOnJvmShutdown().  
+				fileMmapEnable().
+				asyncWriteEnable().
+				asyncWriteFlushDelay(config.getIndexerAsyncWriteFlushDelay()).
+				asyncWriteQueueSize(config.getIndexerAsyncWriteQueueSize()).
+				allocateStartSize(config.getIndexerMapDbSizeIncrement()).
+				allocateIncrement(config.getIndexerMapDbSizeIncrement()).
+				metricsEnable().
+				make();
 	}
-	
+
 	private void  createUncommonTermsMap() throws CryptoException {
 		this.unCommonTermsMap =
-		this.uncommonTermsDB.hashMapCreate(UNCOMMON_TERMS_MAP_NAME).
-			valueSerializer(new CellRowAndColMaskListSerializer()).
-			keySerializer(new RawTermSerializer(this.config)).
-			counterEnable().					
-			make();		
+				this.uncommonTermsDB.hashMapCreate(UNCOMMON_TERMS_MAP_NAME).
+				valueSerializer(new CellRowAndColMaskListSerializer()).
+				keySerializer(new RawTermSerializer(this.config)).
+				counterEnable().					
+				make();		
 	}
-	
+
 	private void  createAllCommonTermsMap() throws CryptoException {
 		this.commonTermsMap =
-		this.commonTermsDB.hashMapCreate(COMMON_TERMS_MAP_NAME).
-			valueSerializer(Serializer.INTEGER).
-			keySerializer(new RawTermSerializer(this.config)).
-			counterEnable().					
-			make();		
+				this.commonTermsDB.hashMapCreate(COMMON_TERMS_MAP_NAME).
+				valueSerializer(Serializer.INTEGER).
+				keySerializer(new RawTermSerializer(this.config)).
+				counterEnable().					
+				make();		
 	}
 
 	private  void readCryptoData(File file, int numberOfShards, int shardNumber) throws IOException, InterruptedException {
@@ -180,7 +235,7 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 		DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(file), 10000000));
 		int termLength = readHeader(dis);
 		int initialCellListSize = config.getIndexerInitialCellListSize();
-		
+
 		int i = 0;
 		int loggingCellCount = config.getIndexerLoggingCellCount();
 		while (true) {
@@ -191,7 +246,7 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 					throw new InterruptedException();
 				}
 			}
-			
+
 			try {
 				Cell cell = Cell.read(dis, termLength);
 				i++;

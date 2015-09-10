@@ -45,15 +45,15 @@ public class IndexFilterCreator {
 	
 	public void createFilters() throws CryptoException, IOException {
 		createTermAndRowFilter();
-		SearchIndex index = new SearchIndex(this.config, this.indexName, true);
-		index.openIndex();	
-		createTermsFilter(indexDirectory + UNCOMMON_TERMS_FILTER_FILE_NAME, 
-				index.getUncommonEntriesCount(),
-				index.getUncommonEntriesIterator());
-		createTermsFilter(indexDirectory + COMMON_TERMS_FILTER_FILE_NAME, 
-				index.getCommonEntriesCount(),
-				index.getCommonEntriesIterator());	
-		index.closeIndex();
+//		SearchIndex index = new SearchIndex(this.config, this.indexName, true);
+//		index.openIndex();	
+//		createTermsFilter(indexDirectory + UNCOMMON_TERMS_FILTER_FILE_NAME, 
+//				index.getUncommonEntriesCount(),
+//				index.getUncommonEntriesIterator());
+//		createTermsFilter(indexDirectory + COMMON_TERMS_FILTER_FILE_NAME, 
+//				index.getCommonEntriesCount(),
+//				index.getCommonEntriesIterator());	
+//		index.closeIndex();
 	}
 	
 	private void createTermsFilter(String filterFileName, int numEntries, 
