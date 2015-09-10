@@ -209,8 +209,14 @@ public class SearchIndex {
 		if (!this.isOpen) {
 			throw new IllegalStateException("Index " + this.indexName + " is not open");
 		}
-
-		Integer colMask = commonTermsAndRowMap.get(new TermAndRow(token.getTerm(), row));
+		
+		Integer colMask = null;
+		TermAndRow termAndRow = new TermAndRow(token.getTerm(), row);
+		
+		if (this.commonTermsAndRowFilter.mightContain(termAndRow)) {
+			colMask = commonTermsAndRowMap.get(new TermAndRow(token.getTerm(), row));
+		}
+		
 		if (colMask != null) {
 			return true;
 		} else {
