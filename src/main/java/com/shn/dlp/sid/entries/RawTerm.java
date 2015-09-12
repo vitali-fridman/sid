@@ -45,4 +45,11 @@ public final class RawTerm implements Serializable, Comparable{
 		BigInteger them = new BigInteger(rto.getValue());
 		return me.compareTo(them);
 	}
+	
+	public int getShard(int numberOfShards) {
+		int hash = hashCode();
+		int positiveHash = (hash <0 ? -hash : hash);
+		int shardIndex = positiveHash / (Integer.MAX_VALUE / numberOfShards);
+		return shardIndex;
+	}
 }

@@ -6,7 +6,7 @@ public class IndexComponents {
 		
 	}
 
-	public static final String COMMON_TERMS_AND_ROW_MAP_NAME = "CommonTermsAndRowMap";
+	public final static String COMMON_TERMS_AND_ROW_MAP_NAME = "CommonTermsAndRowMap";
 	public final static String COMMON_TERMS_AND_ROW_DB_NAME = "ConmmonTermsAndRowDB";
 	
 	public final static String DESCRIPTOR_FILE_NAME = "IndexDescriptor";

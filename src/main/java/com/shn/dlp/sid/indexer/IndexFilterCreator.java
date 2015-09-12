@@ -1,113 +1,97 @@
 package com.shn.dlp.sid.indexer;
 
-import static com.shn.dlp.sid.indexer.IndexComponents.COMMON_TERMS_AND_ROW_DB_NAME;
-import static com.shn.dlp.sid.indexer.IndexComponents.COMMON_TERMS_AND_ROW_MAP_NAME;
-import static com.shn.dlp.sid.indexer.IndexComponents.COMMON_TERMS_FILTER_FILE_NAME;
-import static com.shn.dlp.sid.indexer.IndexComponents.TERM_AND_ROW_FILTER_FILE_NAME;
-import static com.shn.dlp.sid.indexer.IndexComponents.UNCOMMON_TERMS_FILTER_FILE_NAME;
-
-import java.io.BufferedOutputStream;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
-import java.util.Iterator;
-import java.util.Set;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
-import org.mapdb.DB;
-import org.mapdb.DBMaker;
+import org.apache.log4j.LogManager;
 import org.mapdb.HTreeMap;
-import org.mapdb.Serializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.hash.BloomFilter;
-import com.shn.dlp.sid.entries.RawTerm;
-import com.shn.dlp.sid.entries.RawTermFunnel;
 import com.shn.dlp.sid.entries.TermAndRow;
-import com.shn.dlp.sid.entries.TermAndRowFunnel;
-import com.shn.dlp.sid.entries.TermAndRowSerializer;
 import com.shn.dlp.sid.security.CryptoException;
 import com.shn.dlp.sid.util.SidConfiguration;
-import com.shn.sid.search.SearchIndex;
 
 public class IndexFilterCreator {
 	private final SidConfiguration config;
-	private final String indexName;
-	private final String indexDirectory;
+	private final HTreeMap<TermAndRow, Integer>[] commonTermsAndRowMaps;
 	private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 	
-	public IndexFilterCreator(SidConfiguration config, String indexName) {
+	public IndexFilterCreator(SidConfiguration config, HTreeMap<TermAndRow, Integer>[] commonTermsAndRowMaps) {
 		this.config = config;
-		this.indexName = indexName;
-		this.indexDirectory = config.getIndexerTempDirectory() + File.separator;
+		this.commonTermsAndRowMaps = commonTermsAndRowMaps;
 	}
 	
-	public void createFilters() throws CryptoException, IOException {
-		createTermAndRowFilter();
-//		SearchIndex index = new SearchIndex(this.config, this.indexName, true);
-//		index.openIndex();	
-//		createTermsFilter(indexDirectory + UNCOMMON_TERMS_FILTER_FILE_NAME, 
-//				index.getUncommonEntriesCount(),
-//				index.getUncommonEntriesIterator());
-//		createTermsFilter(indexDirectory + COMMON_TERMS_FILTER_FILE_NAME, 
-//				index.getCommonEntriesCount(),
-//				index.getCommonEntriesIterator());	
-//		index.closeIndex();
-	}
-	
-	private void createTermsFilter(String filterFileName, int numEntries, 
-			Iterator<RawTerm> termsIterator) 
-			throws IOException {
+	public void createTermAndRowFilters() throws CryptoException, IOException {
+		int numShards = this.commonTermsAndRowMaps.length;
 		
-		double filterFPP = this.config.getBloomFilterFPP();
+		ExecutorService executor= Executors.newFixedThreadPool(config.getIndexerNumThreads());
+		List<Future<Boolean>> results = new ArrayList<>();
+		boolean[] completed = new boolean[numShards];
 		
-		LOG.info("For " + filterFileName + " number of entries is: " + String.format("%,d", numEntries));
 		
-		BloomFilter<RawTerm> filter = BloomFilter.create(RawTermFunnel.INSTANCE, numEntries, filterFPP);
-		
-		int count = 0;
-		while (termsIterator.hasNext()) {
-			filter.put(termsIterator.next());
-			if (count%100000 == 0) {
-				LOG.info("Adding entry# " + String.format("%,d", count) + " to " + filterFileName + " Filter.");
-			}
-			count++;
+		for (int i=0; i<numShards; i++) {
+			Callable<Boolean> worker =  new FilterCreatorWorker(this.config, i, commonTermsAndRowMaps[i]);
+			Future<Boolean> result = executor.submit(worker);
+			results.add(result);
 		}
 		
-		BufferedOutputStream out = new BufferedOutputStream(new FileOutputStream(filterFileName));
-		filter.writeTo(out);
+		boolean fail = false;
+		int remaining = numShards;
 		
-	}
-
-	private void createTermAndRowFilter() throws CryptoException, IOException {
-		File commonTermsAndRowDBfile = new File(indexDirectory + COMMON_TERMS_AND_ROW_DB_NAME);
-		DB commonTermsAndRowDB = DBMaker.fileDB(commonTermsAndRowDBfile).readOnly().make();
-		HTreeMap<TermAndRow, Integer> commonTermsAndRowMap = 
-				commonTermsAndRowDB.hashMap(COMMON_TERMS_AND_ROW_MAP_NAME, 
-				new TermAndRowSerializer(config), 
-				Serializer.INTEGER,
-				null);
-		
-		int numEntries = (int) commonTermsAndRowMap.mappingCount();
-		Set<TermAndRow> entries = commonTermsAndRowMap.keySet();
-		double filterFPP = this.config.getBloomFilterFPP();
-		
-		BloomFilter<TermAndRow> filter = BloomFilter.create(TermAndRowFunnel.INSTANCE,  numEntries, filterFPP);
-		
-		int count = 0;
-		LOG.info("Adding " + String.format("%,d", numEntries) + " entries to TermAndRow Filter.");
-		for (TermAndRow entry : entries) {
-			filter.put(entry);
-			if (count%100000 == 0) {
-				LOG.info("Adding entry# " + String.format("%,d", count) + " to TermsAndRow Filter.");
+		while(!fail && remaining > 0) {
+			for (int i=0; i<numShards; i++) {
+				Future<Boolean> future = results.get(i);
+				try {
+					if (!completed[i] && future.isDone()) {
+						if (!future.get()) {
+							fail = true;
+							LOG.error("Filter worker for shard# " + i + " failed");
+							break;
+						} else {
+							completed[i] = true;
+							remaining--;
+						}
+					}
+				} catch (InterruptedException | ExecutionException e) {
+					fail = true;
+					LOG.error("Indexer workers for shard# " + i + " threw exception", e); 
+					break;						
+				}
+				
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException e) {};
 			}
-			count++;
 		}
-		String filterFileName = this.indexDirectory + TERM_AND_ROW_FILTER_FILE_NAME;
-		BufferedOutputStream out = new BufferedOutputStream(new FileOutputStream(filterFileName));
-		filter.writeTo(out);
-		out.close();
-		commonTermsAndRowDB.close();
+		
+		if (!fail) {
+			executor.shutdown();
+		} else {
+			executor.shutdownNow();
+		}
+		
+		try {
+			executor.awaitTermination(Integer.MAX_VALUE, TimeUnit.DAYS);
+		} catch (InterruptedException e) {
+			LOG.error("Indexer was interrupted before normal completion, exiting", e);
+			LogManager.shutdown();
+			System.exit(-1);
+		}
+		
+		if (fail) {
+			LOG.error("One of the indexer workers failed, Exiting");
+			LogManager.shutdown();
+			System.exit(-1);
+		}
 	}
 }

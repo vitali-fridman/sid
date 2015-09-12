@@ -16,6 +16,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.log4j.LogManager;
@@ -43,7 +44,7 @@ import static com.shn.dlp.sid.indexer.IndexComponents.COMMON_TERMS_AND_ROW_DB_NA
 import static com.shn.dlp.sid.indexer.IndexComponents.COMMON_TERMS_AND_ROW_MAP_NAME;
 import static com.shn.dlp.sid.indexer.IndexComponents.DESCRIPTOR_FILE_NAME;
 
-public class CryptoFileIndexer {
+public class Indexer {
 
 	@Option(name="-f",usage="File Name to read", required=true)
 	private String fileName;
@@ -52,8 +53,8 @@ public class CryptoFileIndexer {
 
 	private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());  
 
-	private static DB commonTermsAndRowDB;
-	private static HTreeMap<TermAndRow, Integer> commonTermsAndRowMap;
+	private static DB[] commonTermsAndRowDBs;
+	private static HTreeMap<TermAndRow, Integer>[] commonTermsAndRowMaps;
 	private static int headerLength;
 	private static int formatVersion;
 	private static String algorithm;
@@ -64,7 +65,7 @@ public class CryptoFileIndexer {
 
 
 	public static void main(String[] args) throws IOException, CryptoException {
-		CryptoFileIndexer cfr = new CryptoFileIndexer();
+		Indexer cfr = new Indexer();
 		CmdLineParser parser = new CmdLineParser(cfr);
 		try {
 			parser.parseArgument(args);
@@ -103,8 +104,6 @@ public class CryptoFileIndexer {
 		pgc.setDaemon(true);
 		pgc.start();
 
-		createCommonTermsDBandMap(config);
-
 		numShards = calculateNumberOfShards(config, fileToIndex);
 		
 		if (numShards < 1) {
@@ -112,11 +111,16 @@ public class CryptoFileIndexer {
 			System.exit(-1);
 			LogManager.shutdown();
 		}
+		
+		createCommonTermsDBandMaps(config);
+
+		
 		ExecutorService executor= Executors.newFixedThreadPool(config.getIndexerNumThreads());
 		List<Future<Boolean>> results = new ArrayList<>();
+		boolean[] completed = new boolean[numShards];
 
 		for (int i = 0; i < numShards; i++) {
-			Callable<Boolean> worker = new CryptoFileIndexerWorker(config, fileToIndex, numShards, commonTermsAndRowMap, i);
+			Callable<Boolean> worker = new IndexerWorker(config, fileToIndex, numShards, commonTermsAndRowMaps, i);
 			Future<Boolean> result = executor.submit(worker);
 			results.add(result);
 		}
@@ -124,28 +128,28 @@ public class CryptoFileIndexer {
 		boolean fail = false;
 		int remaning  = numShards;
 		while(!fail && remaning > 0) {
-			for (Future<Boolean> future : results) {
+			for (int i=0; i<numShards; i++) {
+				Future<Boolean> future = results.get(i);
 				try {
-					if (future. isDone()) {
+					if (!completed[i] && future. isDone()) {
 						if (!future.get()) {
 							fail = true;
-							LOG.error("One of the indexer workers failed");
+							LOG.error("Indexer workers for shard# " + i + " failed");
 							break;
 						} else {
+							completed[i] = true;
 							remaning--;
 						}
 					}
 				} catch (InterruptedException | ExecutionException e) {
 					fail = true;
-					LOG.error("One of the indexer workers threw exception", e); 
+					LOG.error("Indexer workers for shard# " + i + " threw exception", e); 
 					break;
 				}
 			}
 			try {
 				Thread.sleep(1000);
-			} catch (InterruptedException e) {
-				// do nothing
-			}
+			} catch (InterruptedException e) {};
 		}
 
 		if (!fail) {
@@ -154,15 +158,28 @@ public class CryptoFileIndexer {
 			executor.shutdownNow();
 		}
 
-		while (!executor.isTerminated()) {			
+		try {
+			executor.awaitTermination(Integer.MAX_VALUE, TimeUnit.DAYS);
+		} catch (InterruptedException e) {
+			LOG.error("Indexer was interrupted before normal completion, exiting", e);
+			LogManager.shutdown();
+			System.exit(-1);
+		}
+		
+		if (fail) {
+			LOG.error("One of the indexer workers failed, Exiting");
+			LogManager.shutdown();
+			System.exit(-1);
 		}
 
-		closeCommonTermsDB();
+		commitCommonTermsAndRowDBs();
 		
 		writeDescriptorFile(tempDirectory);
 		
-		IndexFilterCreator filterCreator = new IndexFilterCreator(config, cfr.fileName);
-		filterCreator.createFilters();
+		IndexFilterCreator filterCreator = new IndexFilterCreator(config, commonTermsAndRowMaps);
+		filterCreator.createTermAndRowFilters();
+		
+		closeCommonTermsAndRowDBs();
 		
 		String indexDirectory = config.getIndexesDirectory() + File.separator + cfr.fileName;
 		FileUtils.deleteQuietly(new File(indexDirectory));
@@ -188,34 +205,44 @@ public class CryptoFileIndexer {
 		mapper.writeValue(new File(indexDirectory + File.separator + DESCRIPTOR_FILE_NAME), descriptor);
 	}
 
-	private static void closeCommonTermsDB() {
-		commonTermsAndRowDB.commit();
-		commonTermsAndRowDB.compact();
-		commonTermsAndRowDB.close();
+	private static void commitCommonTermsAndRowDBs() {
+		for (int i=0; i< numShards; i++) {
+			commonTermsAndRowDBs[i].commit();
+		}
 	}
 
-	private static void createCommonTermsDBandMap(SidConfiguration config) throws CryptoException {
-		File commonTermsDBfile = new File(config.getIndexerTempDirectory() + "/" + COMMON_TERMS_AND_ROW_DB_NAME);
-		FileUtils.deleteQuietly(commonTermsDBfile);
+	private static void closeCommonTermsAndRowDBs() {
+		for (int i=0; i< numShards; i++) {
+			commonTermsAndRowDBs[i].close();
+		}
+	}
+	
+	private static void createCommonTermsDBandMaps(SidConfiguration config) throws CryptoException {
 
-		commonTermsAndRowDB = DBMaker.fileDB(commonTermsDBfile).
-				transactionDisable().
-				closeOnJvmShutdown().  
-				fileMmapEnable().
-				asyncWriteEnable().
-				asyncWriteFlushDelay(config.getIndexerAsyncWriteFlushDelay()).
-				asyncWriteQueueSize(config.getIndexerAsyncWriteQueueSize()).
-				allocateStartSize(config.getIndexerMapDbSizeIncrement()).
-				allocateIncrement(config.getIndexerMapDbSizeIncrement()).
-				metricsEnable().
-				make();
+		commonTermsAndRowDBs = new DB[numShards];
+		commonTermsAndRowMaps = new HTreeMap[numShards];
 		
-		commonTermsAndRowMap =
-				commonTermsAndRowDB.hashMapCreate(COMMON_TERMS_AND_ROW_MAP_NAME).
+		for (int i=0; i<numShards; i++) {
+			File commonTermsDBfile = new File(config.getIndexerTempDirectory() + "/" + COMMON_TERMS_AND_ROW_DB_NAME + "." + i);
+			commonTermsAndRowDBs[i] = DBMaker.fileDB(commonTermsDBfile).
+					transactionDisable().
+					closeOnJvmShutdown().  
+					fileMmapEnable().
+					asyncWriteEnable().
+					asyncWriteFlushDelay(config.getIndexerAsyncWriteFlushDelay()).
+					asyncWriteQueueSize(config.getIndexerAsyncWriteQueueSize()).
+					allocateStartSize(config.getIndexerMapDbSizeIncrement()).
+					allocateIncrement(config.getIndexerMapDbSizeIncrement()).
+					metricsEnable().
+					make();
+		
+			commonTermsAndRowMaps[i] =
+					commonTermsAndRowDBs[i].hashMapCreate(COMMON_TERMS_AND_ROW_MAP_NAME).
 					valueSerializer(Serializer.INTEGER).
 					keySerializer(new TermAndRowSerializer(config)).
 					counterEnable().					
-					make();	
+					make();
+		}
 	
 	}
 

@@ -59,4 +59,13 @@ public class TermAndRow implements Comparable {
 			return this.term.compareTo(other);
 		}
 	}
+	
+	public int getShard(int numberOfShards) {
+		int hashCode = hashCode();
+		if (hashCode < 0) {
+			hashCode = -hashCode;
+		}
+		int shardIndex = hashCode / (Integer.MAX_VALUE / numberOfShards);
+		return shardIndex;
+	}
 }

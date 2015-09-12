@@ -68,6 +68,7 @@ public class DetectViolations {
 		}
 		
 		end = System.nanoTime();
+		LOG.info("Detected " + violations.size() + " rows");
 		LOG.info("Detection took " + (end-start)/1000000d/(double)(iterations) + " ms");
 		
 		LogManager.shutdown();

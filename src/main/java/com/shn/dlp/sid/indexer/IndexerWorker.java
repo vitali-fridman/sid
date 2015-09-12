@@ -39,7 +39,7 @@ import static com.shn.dlp.sid.indexer.IndexComponents.COMMON_TERMS_MAP_NAME;
 import static com.shn.dlp.sid.indexer.IndexComponents.COMMON_TERMS_FILTER_FILE_NAME;
 import static com.shn.dlp.sid.indexer.IndexComponents.UNCOMMON_TERMS_FILTER_FILE_NAME;
 
-public class CryptoFileIndexerWorker implements Callable<Boolean> {
+public class IndexerWorker implements Callable<Boolean> {
 
 
 	private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());  
@@ -52,16 +52,16 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 	private HTreeMap<RawTerm, ArrayList<CellRowAndColMask>> unCommonTermsMap;
 	private DB commonTermsDB;
 	private HTreeMap<RawTerm, Integer> commonTermsMap;
-	private final HTreeMap<TermAndRow, Integer> commonTermsAndRowMap;
+	private final HTreeMap<TermAndRow, Integer>[] commonTermsAndRowMaps;
 
 
-	public CryptoFileIndexerWorker(SidConfiguration config, String fileName, 
-			int numberOfShards, HTreeMap<TermAndRow, Integer> commonTermsMap, int shardNumber) {
+	public IndexerWorker(SidConfiguration config, String fileName, 
+			int numberOfShards, HTreeMap<TermAndRow, Integer>[] commonTermsAndRowsMaps, int shardNumber) {
 		this.config = config;
 		this.cryptoFileName = fileName;
 		this.shardNumber = shardNumber;
 		this.numberOfShards = numberOfShards;
-		this.commonTermsAndRowMap = commonTermsMap;
+		this.commonTermsAndRowMaps = commonTermsAndRowsMaps;
 	}
 
 	@Override
@@ -72,8 +72,7 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 		try {
 			createDB(this.config.getIndexerTempDirectory(), this.shardNumber);
 		} catch (IOException e) {
-			LOG.error("Error creating db for shard# " + this.shardNumber); 
-			LOG.error(e.getMessage());
+			LOG.error("Error creating db for shard# " + this.shardNumber, e); 
 			return false;
 		}
 
@@ -90,8 +89,7 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 				moveCommonTerms();
 				LOG.info("For shard# " + this.shardNumber + " " + "found " + this.commonTermsMap.size() + " common terms");
 			} catch (IOException e) {
-				LOG.error("Error creating index for shard# " + this.shardNumber);
-				LOG.error(e.getMessage());
+				LOG.error("Error creating index for shard# " + this.shardNumber, e);
 				return false;
 			} catch (InterruptedException e) {
 				return false;
@@ -103,7 +101,7 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 			try {
 				createFilters();
 			} catch (IOException e) {
-				LOG.error("Error creating filters for shard# " + this.shardNumber);
+				LOG.error("Error creating filters for shard# " + this.shardNumber, e);
 				return false;
 			}
 		} finally {
@@ -171,7 +169,11 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 				int combinedMask = 0;
 				for (CellRowAndColMask location : locations) {
 					combinedMask = combinedMask | (1 << location.getMask());
-					this.commonTermsAndRowMap.put(new TermAndRow(term, location.getRow()), location.getMask());
+					
+					TermAndRow termAndRow = new TermAndRow(term, location.getRow());
+					int mapShard = termAndRow.getShard(numberOfShards);
+					
+					this.commonTermsAndRowMaps[mapShard].put(termAndRow, location.getMask());
 				}
 				this.commonTermsMap.put(entry.getKey(), combinedMask);
 				this.unCommonTermsMap.remove(term);
@@ -254,9 +256,7 @@ public class CryptoFileIndexerWorker implements Callable<Boolean> {
 					LOG.info("Shard: " + this.shardNumber + ". Processing cell# " + String.format("%,d", i));
 				}
 				RawTerm rt = new RawTerm(cell.getTerm());
-				int hash = rt.hashCode();
-				int positiveHash = (hash <0 ? -hash : hash);
-				int shardIndex = positiveHash / (Integer.MAX_VALUE / numberOfShards);
+				int shardIndex = rt.getShard(numberOfShards);
 				if (shardIndex == shardNumber) {
 					CellRowAndColMask newEntry = new CellRowAndColMask(cell.getRow(), cell.getColumn());
 					ArrayList<CellRowAndColMask> list = this.unCommonTermsMap.get(rt);

@@ -49,9 +49,9 @@ public class SearchIndex {
 	private IndexDescriptor descriptor;
 	private final String indexDirectory;
 	private int numShards;
-	private DB commonTermsAndRowDB;
-	private HTreeMap<TermAndRow, Integer> commonTermsAndRowMap;
-	private BloomFilter<TermAndRow> commonTermsAndRowFilter;
+	private DB[] commonTermsAndRowDBs;
+	private ArrayList<HTreeMap<TermAndRow, Integer>> commonTermsAndRowMaps;
+	private ArrayList<BloomFilter<TermAndRow>> commonTermsAndRowFilters;
 	private DB[] uncommonTermsDBs;
 	private ArrayList<HTreeMap<RawTerm, ArrayList<CellRowAndColMask>>>  unCommonTermsMaps;
 	private ArrayList<BloomFilter<RawTerm>> uncommonTermsFilters;
@@ -94,31 +94,41 @@ public class SearchIndex {
 			this.descriptor = mapper.readValue(descriptorFile, IndexDescriptor.class);
 			this.numShards = descriptor.getNumShards();
 
-			File commonTermsAndRowDBfile = new File(indexDirectory + File.separator+ COMMON_TERMS_AND_ROW_DB_NAME);
-			this.commonTermsAndRowDB = DBMaker.fileDB(commonTermsAndRowDBfile).readOnly().make();
-			this.commonTermsAndRowMap = this.commonTermsAndRowDB.hashMap(COMMON_TERMS_AND_ROW_MAP_NAME, 
-					new TermAndRowSerializer(config), 
-					Serializer.INTEGER,
-					null);
-
-			String termsAndRowFilterFile = indexDirectory + File.separator + TERM_AND_ROW_FILTER_FILE_NAME;
-
-			filterIn = new BufferedInputStream(new FileInputStream(termsAndRowFilterFile));
-			this.commonTermsAndRowFilter = BloomFilter.readFrom(filterIn, TermAndRowFunnel.INSTANCE);
-			filterIn.close();
 			filterIn =  null;
 
+			this.commonTermsAndRowDBs = new DB[this.numShards];
+			this.commonTermsAndRowMaps = new ArrayList<HTreeMap<TermAndRow, Integer>>();
+			this.commonTermsAndRowFilters = new ArrayList<BloomFilter<TermAndRow>>();
+			
 			this.uncommonTermsDBs = new DB[this.numShards];
 			this.commonTermsDBs = new DB[this.numShards];
+			this.commonTermsAndRowDBs = new DB[this.numShards];
 
 			this.unCommonTermsMaps = new ArrayList<HTreeMap<RawTerm, ArrayList<CellRowAndColMask>>>();
 			this.commonTermsMaps = new ArrayList<HTreeMap<RawTerm, Integer>>();
+			this.commonTermsAndRowMaps = new ArrayList<HTreeMap<TermAndRow, Integer>>();
 
 			this.uncommonTermsFilters = new ArrayList<BloomFilter<RawTerm>>();
 			this.commonTermsFilters = new ArrayList<BloomFilter<RawTerm>>();
 
 
 			for (int i=0; i<this.numShards; i++) {
+				
+				File commonTermsAndRowDBfile = new File(indexDirectory + File.separator+ 
+						COMMON_TERMS_AND_ROW_DB_NAME + "." + i);
+				this.commonTermsAndRowDBs[i] = DBMaker.fileDB(commonTermsAndRowDBfile).readOnly().make();
+				this.commonTermsAndRowMaps.add(this.commonTermsAndRowDBs[i].hashMap(COMMON_TERMS_AND_ROW_MAP_NAME,
+						new TermAndRowSerializer(config),   
+						Serializer.INTEGER,
+						null));
+				
+				String termsAndRowFilterFile = indexDirectory + File.separator + 
+						TERM_AND_ROW_FILTER_FILE_NAME + "." + i;
+				filterIn = new BufferedInputStream(new FileInputStream(termsAndRowFilterFile));
+				this.commonTermsAndRowFilters.add(BloomFilter.readFrom(filterIn, TermAndRowFunnel.INSTANCE));
+				filterIn.close();
+				filterIn = null;
+					
 				File unCommonTermsDBfile = new File(this.indexDirectory + File.separator + 
 						UNCOMMON_TERMS_DB_NAME + "." + i);
 				this.uncommonTermsDBs[i] = DBMaker.fileDB(unCommonTermsDBfile).readOnly().make();
@@ -161,9 +171,9 @@ public class SearchIndex {
 			throw new IllegalStateException("Index " + this.indexName + " is already closed");
 		}
 		this.isOpen = false;
-		this.commonTermsAndRowDB.close();
-		this.commonTermsAndRowDB = null;
 		for (int i=0; i<this.numShards; i++) {
+			this.commonTermsAndRowDBs[i].close();
+			this.commonTermsAndRowDBs[i] = null;
 			this.uncommonTermsDBs[i].close();
 			this.uncommonTermsDBs[i] = null;
 			this.commonTermsDBs[i].close();
@@ -212,9 +222,10 @@ public class SearchIndex {
 		
 		Integer colMask = null;
 		TermAndRow termAndRow = new TermAndRow(token.getTerm(), row);
+		int shardNumber = termAndRow.getShard(this.numShards);
 		
-		if (this.commonTermsAndRowFilter.mightContain(termAndRow)) {
-			colMask = commonTermsAndRowMap.get(new TermAndRow(token.getTerm(), row));
+		if (this.commonTermsAndRowFilters.get(shardNumber).mightContain(termAndRow)) {
+			colMask = commonTermsAndRowMaps.get(shardNumber).get(new TermAndRow(token.getTerm(), row));
 		}
 		
 		if (colMask != null) {
@@ -228,12 +239,7 @@ public class SearchIndex {
 		if (!this.isOpen) {
 			throw new IllegalStateException("Index " + this.indexName + " is not open");
 		}
-
-		RawTerm rt = token.getTerm();
-		int hash = rt.hashCode();
-		int positiveHash = (hash < 0 ? -hash : hash);
-		int shardIndex = positiveHash / (Integer.MAX_VALUE / this.numShards);
-		return shardIndex;
+		return token.getTerm().getShard(this.numShards);
 	}
 
 	public class FirstSearchLookupResult {
