@@ -1,1 +1,7 @@
 /target/
+/logs/
+/hs_err_pid18098.log
+/hs_err_pid18144.log
+/hs_err_pid18191.log
+/replay_pid18098.log
+/replay_pid18144.log
