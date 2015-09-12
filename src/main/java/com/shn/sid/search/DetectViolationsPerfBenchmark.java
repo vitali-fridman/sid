@@ -57,12 +57,14 @@ public class DetectViolationsPerfBenchmark {
 		long start = 0;
 		long end = 0;
 		List<Violation> violations = null;
+		Token[] tokensAsArray = new Token[tokens.size()];
+		tokens.toArray(tokensAsArray);
 		start = System.nanoTime();
 		
 		int iterations = 1000;
 		for (int j=0; j<iterations; j++) {
 			for (int i=0; i<numIndexes; i++) {
-				violations = detectors[i].findViolations(tokens, dv.colThreshold, dv.cviolationsThreshold);
+				violations = detectors[i].findViolations(tokensAsArray, dv.colThreshold, dv.cviolationsThreshold);
 			}
 		}
 			

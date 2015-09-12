@@ -38,7 +38,7 @@ public class ViolationsDetector {
 		this.index.closeIndex();
 	}
 
-	public List<Violation> findViolations(List<Token> tokens, int colThreashold, int violationsThreashold) {
+	public List<Violation> findViolations(Token[] tokends, int colThreashold, int violationsThreashold) {
 
 		List<Violation> violations = new ArrayList<Violation>();
 		List<Violation> candidateViolations = new ArrayList<Violation>();
@@ -47,8 +47,8 @@ public class ViolationsDetector {
 		List <SearchIndex.FirstSearchLookupResult> commonFirstSearchResults =  new ArrayList<SearchIndex.FirstSearchLookupResult>();
 		int numCommon = 0;
 		int numUncommon = 0;
-		for (int i=0; i<tokens.size(); i++)  {
-			SearchIndex.FirstSearchLookupResult firstSearchResult = index.firstSearch(tokens.get(i));
+		for (int i=0; i<tokends.length; i++)  {
+			SearchIndex.FirstSearchLookupResult firstSearchResult = index.firstSearch(tokends[i]);
 			if (firstSearchResult == null) {
 				//nothing
 			} else if (firstSearchResult.getPresense() == TokenPresense.UNCOMMON) {

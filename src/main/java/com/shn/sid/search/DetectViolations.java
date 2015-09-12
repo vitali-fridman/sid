@@ -45,6 +45,8 @@ public class DetectViolations {
 		SidConfiguration config = new SidConfiguration();
 		TestLexer lexer = new TestLexer(config);
 		List<Token> tokens = lexer.scan(dv.fileName);
+		Token[] tokensAsArray = new Token[tokens.size()];
+		tokensAsArray = tokens.toArray(tokensAsArray);
 		
 		ViolationsDetector detector = new ViolationsDetector(config, dv.indexName);
 		detector.loadIndex();
@@ -54,9 +56,9 @@ public class DetectViolations {
 		List<Violation> violations = null;
 		start = System.nanoTime();
 		
-		int iterations = 1000;
+		int iterations = 1;
 		for (int j=0; j<iterations; j++) {
-				violations = detector.findViolations(tokens, dv.colThreshold, dv.cviolationsThreshold);
+				violations = detector.findViolations(tokensAsArray, dv.colThreshold, dv.cviolationsThreshold);
 		}
 			
 		detector.unloadIndex();
