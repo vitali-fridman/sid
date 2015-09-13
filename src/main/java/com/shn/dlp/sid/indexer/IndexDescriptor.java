@@ -4,7 +4,8 @@ public class IndexDescriptor {
 	private int headerLength;
 	private int formatVersion;
 	private String algorithm;
-	private int termLength;
+	private int fullTermLength;
+	private int retainedTermLegth;
 	private int numRows;
 	private int numColumns;
 	private int numShards;
@@ -14,12 +15,13 @@ public class IndexDescriptor {
 	}
 	
 	public IndexDescriptor(int headerLength, int formatVersion, String algorithm, 
-			int termLength, int numRows, int numColumns, int numShards) {
+			int fullTermLength, int retainedTermLength, int numRows, int numColumns, int numShards) {
 		super();
 		this.headerLength = headerLength;
 		this.formatVersion = formatVersion;
 		this.algorithm = algorithm;
-		this.termLength = termLength;
+		this.fullTermLength = fullTermLength;
+		this.retainedTermLegth = retainedTermLength;
 		this.numRows = numRows;
 		this.numColumns = numColumns;
 		this.numShards = numShards;	
@@ -43,11 +45,17 @@ public class IndexDescriptor {
 	public void setAlgorithm(String algorithm) {
 		this.algorithm = algorithm;
 	}
-	public int getTermLength() {
-		return termLength;
+	public int getFullTermLength() {
+		return fullTermLength;
 	}
-	public void setTermLength(int termLength) {
-		this.termLength = termLength;
+	public void setFullTermLength(int fullTermLength) {
+		this.fullTermLength = fullTermLength;
+	}
+	public int getRetainedTermLength() {
+		return this.retainedTermLegth;
+	}
+	public void setRetainedTermLength(int retainedTermLength) {
+		this.retainedTermLegth = retainedTermLength;
 	}
 	public int getNumRows() {
 		return numRows;

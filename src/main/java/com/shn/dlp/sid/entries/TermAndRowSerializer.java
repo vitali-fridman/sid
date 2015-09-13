@@ -13,8 +13,8 @@ public class TermAndRowSerializer extends Serializer<TermAndRow> {
 	
 	private final int termLength;
 
-	public TermAndRowSerializer(SidConfiguration config) throws CryptoException {
-		this.termLength = new Crypter(config).getCryptoValueLength();
+	public TermAndRowSerializer(int termLength) {
+		this.termLength = termLength;
 	}
 	
 	@Override

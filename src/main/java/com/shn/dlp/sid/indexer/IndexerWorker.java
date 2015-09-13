@@ -9,6 +9,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map.Entry;
@@ -46,19 +47,26 @@ public class IndexerWorker implements Callable<Boolean> {
 
 	private SidConfiguration config;
 	private final String cryptoFileName;
+	private final int fullTermLength;
+	private final int retinedTermLegth;
 	private final int numberOfShards;
 	private final int shardNumber;
+	private DB uncommonTermsDBtemp;
 	private DB uncommonTermsDB;
+	private HTreeMap<RawTerm, ArrayList<CellRowAndColMask>> unCommonTermsMapTemp;
 	private HTreeMap<RawTerm, ArrayList<CellRowAndColMask>> unCommonTermsMap;
 	private DB commonTermsDB;
 	private HTreeMap<RawTerm, Integer> commonTermsMap;
 	private final HTreeMap<TermAndRow, Integer>[] commonTermsAndRowMaps;
 
 
-	public IndexerWorker(SidConfiguration config, String fileName, 
-			int numberOfShards, HTreeMap<TermAndRow, Integer>[] commonTermsAndRowsMaps, int shardNumber) {
+	public IndexerWorker(SidConfiguration config, String fileName, int numRows,
+			int numberOfShards, HTreeMap<TermAndRow, Integer>[] commonTermsAndRowsMaps, 
+			int fullTermLength, int retainedTermLength, int shardNumber) {
 		this.config = config;
 		this.cryptoFileName = fileName;
+		this.fullTermLength = fullTermLength;
+		this.retinedTermLegth = retainedTermLength;
 		this.shardNumber = shardNumber;
 		this.numberOfShards = numberOfShards;
 		this.commonTermsAndRowMaps = commonTermsAndRowsMaps;
@@ -77,16 +85,15 @@ public class IndexerWorker implements Callable<Boolean> {
 		}
 
 		try {
-			try {
-				createUncommonTermsMap();
-				createAllCommonTermsMap();
-			} catch (CryptoException e) {
-				LOG.error("Error creating dbmap", e);
-				return false;
-			}
+			
+			createUncommonTermsMapTemp();
+			createUncommonTermsMap();
+			createAllCommonTermsMap();
+			
 			try {
 				readCryptoData(file, this.numberOfShards, this.shardNumber);
 				moveCommonTerms();
+				deleteTempDB();
 				LOG.info("For shard# " + this.shardNumber + " " + "found " + this.commonTermsMap.size() + " common terms");
 			} catch (IOException e) {
 				LOG.error("Error creating index for shard# " + this.shardNumber, e);
@@ -110,6 +117,12 @@ public class IndexerWorker implements Callable<Boolean> {
 		}
 
 		return true; 
+	}
+	
+	private void deleteTempDB() {
+		File uncommonTermsDBfileTemp = new File(this.config.getIndexerTempDirectory() + "/" + 
+				UNCOMMON_TERMS_DB_NAME + "." + shardNumber + ".temp");
+		FileUtils.deleteQuietly(uncommonTermsDBfileTemp);
 	}
 
 	private void createFilters() throws IOException {
@@ -160,7 +173,9 @@ public class IndexerWorker implements Callable<Boolean> {
 				throw new InterruptedException();
 			}
 
-			RawTerm term = entry.getKey();
+			RawTerm fullTerm = entry.getKey();
+			RawTerm retainedTerm = new RawTerm(Arrays.copyOf(fullTerm.getValue(), this.retinedTermLegth));
+			
 			ArrayList<CellRowAndColMask> locations = entry.getValue();
 			if (locations.size() > commonalityThreashold) {
 				if (i%1000 == 0) {
@@ -170,24 +185,39 @@ public class IndexerWorker implements Callable<Boolean> {
 				for (CellRowAndColMask location : locations) {
 					combinedMask = combinedMask | (1 << location.getMask());
 					
-					TermAndRow termAndRow = new TermAndRow(term, location.getRow());
+					TermAndRow termAndRow = new TermAndRow(retainedTerm, location.getRow());
 					int mapShard = termAndRow.getShard(numberOfShards);
 					
 					this.commonTermsAndRowMaps[mapShard].put(termAndRow, location.getMask());
 				}
-				this.commonTermsMap.put(entry.getKey(), combinedMask);
-				this.unCommonTermsMap.remove(term);
+				this.commonTermsMap.put(fullTerm, combinedMask);
 				i++;
+			} else {
+				this.unCommonTermsMap.put(retainedTerm, locations);
 			}
 		}
 	}
 
 	private  void createDB(String dbDirectoryName, int shardNumber) throws IOException {
 
+		File uncommonTermsDBfileTemp = new File(dbDirectoryName + "/" + UNCOMMON_TERMS_DB_NAME + "." + shardNumber + ".temp");
+		FileUtils.deleteQuietly(uncommonTermsDBfileTemp);
 		File uncommonTermsDBfile = new File(dbDirectoryName + "/" + UNCOMMON_TERMS_DB_NAME + "." + shardNumber);
 		FileUtils.deleteQuietly(uncommonTermsDBfile);
 		File allCommonTermsDBfile = new File(dbDirectoryName + "/" + COMMON_TERMS_DB_NAME + "." + shardNumber);
 		FileUtils.deleteQuietly(allCommonTermsDBfile);
+		
+		this.uncommonTermsDBtemp = DBMaker.fileDB(uncommonTermsDBfileTemp).
+				transactionDisable().
+				closeOnJvmShutdown().  
+				fileMmapEnable().
+				asyncWriteEnable().
+				asyncWriteFlushDelay(config.getIndexerAsyncWriteFlushDelay()).
+				asyncWriteQueueSize(config.getIndexerAsyncWriteQueueSize()).
+				allocateStartSize(config.getIndexerMapDbSizeIncrement()).
+				allocateIncrement(config.getIndexerMapDbSizeIncrement()).
+				metricsEnable().
+				make();
 
 		this.uncommonTermsDB = DBMaker.fileDB(uncommonTermsDBfile).
 				transactionDisable().
@@ -213,21 +243,30 @@ public class IndexerWorker implements Callable<Boolean> {
 				metricsEnable().
 				make();
 	}
+	
+	private void createUncommonTermsMapTemp() {
+		this.unCommonTermsMapTemp =
+				this.uncommonTermsDBtemp.hashMapCreate(UNCOMMON_TERMS_MAP_NAME).
+				valueSerializer(new CellRowAndColMaskListSerializer()).
+				keySerializer(new RawTermSerializer(this.fullTermLength)).
+				counterEnable().					
+				make();	
+	}
 
-	private void  createUncommonTermsMap() throws CryptoException {
+	private void  createUncommonTermsMap(){
 		this.unCommonTermsMap =
 				this.uncommonTermsDB.hashMapCreate(UNCOMMON_TERMS_MAP_NAME).
 				valueSerializer(new CellRowAndColMaskListSerializer()).
-				keySerializer(new RawTermSerializer(this.config)).
+				keySerializer(new RawTermSerializer(this.retinedTermLegth)).
 				counterEnable().					
 				make();		
 	}
 
-	private void  createAllCommonTermsMap() throws CryptoException {
+	private void  createAllCommonTermsMap() {
 		this.commonTermsMap =
 				this.commonTermsDB.hashMapCreate(COMMON_TERMS_MAP_NAME).
 				valueSerializer(Serializer.INTEGER).
-				keySerializer(new RawTermSerializer(this.config)).
+				keySerializer(new RawTermSerializer(this.retinedTermLegth)).
 				counterEnable().					
 				make();		
 	}
@@ -235,8 +274,8 @@ public class IndexerWorker implements Callable<Boolean> {
 	private  void readCryptoData(File file, int numberOfShards, int shardNumber) throws IOException, InterruptedException {
 
 		DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(file), 10000000));
-		int termLength = readHeader(dis);
 		int initialCellListSize = config.getIndexerInitialCellListSize();
+		readHeader(dis);
 
 		int i = 0;
 		int loggingCellCount = config.getIndexerLoggingCellCount();
@@ -250,21 +289,21 @@ public class IndexerWorker implements Callable<Boolean> {
 			}
 
 			try {
-				Cell cell = Cell.read(dis, termLength);
+				Cell cell = Cell.read(dis, this.fullTermLength);
 				i++;
 				if (i%loggingCellCount == 0) {
 					LOG.info("Shard: " + this.shardNumber + ". Processing cell# " + String.format("%,d", i));
 				}
-				RawTerm rt = new RawTerm(cell.getTerm());
+				RawTerm rt = new RawTerm(cell.getValue());
 				int shardIndex = rt.getShard(numberOfShards);
 				if (shardIndex == shardNumber) {
 					CellRowAndColMask newEntry = new CellRowAndColMask(cell.getRow(), cell.getColumn());
-					ArrayList<CellRowAndColMask> list = this.unCommonTermsMap.get(rt);
+					ArrayList<CellRowAndColMask> list = this.unCommonTermsMapTemp.get(rt);
 					if (list == null) {
 						ArrayList<CellRowAndColMask> newList = 
 								new ArrayList<CellRowAndColMask>(initialCellListSize);
 						newList.add(newEntry);
-						this.unCommonTermsMap.put(rt, newList);
+						this.unCommonTermsMapTemp.put(rt, newList);
 					} else {
 						int index = Collections.binarySearch(list, newEntry);
 						if (index >= 0) {
@@ -273,7 +312,7 @@ public class IndexerWorker implements Callable<Boolean> {
 						} else {
 							list.add(-index - 1, newEntry);
 						}		
-						this.unCommonTermsMap.put(rt, list);
+						this.unCommonTermsMapTemp.put(rt, list);
 					}
 				}
 			} catch (IOException e) {
@@ -283,13 +322,8 @@ public class IndexerWorker implements Callable<Boolean> {
 		}
 	}
 
-	private int readHeader(DataInputStream dis) throws IOException {
+	private void readHeader(DataInputStream dis) throws IOException {
 		int headerLength = dis.readByte(); // unused
-		int version = dis.readByte();	   // unused
-		byte[] alg = new byte[this.config.getCryptoFileHeaderAlgoritmNameLength()];
-		dis.readFully(alg);
-		int termLength = dis.readByte();;
-		dis.skip(5);
-		return termLength;
+		dis.skip(headerLength-1);
 	}
 }

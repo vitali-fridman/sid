@@ -12,10 +12,10 @@ import com.shn.dlp.sid.util.SidConfiguration;
 
 public class RawTermSerializer extends Serializer<RawTerm> {
 
-	private final int cryptoDataLength;
+	private final int termLength;
 	
-	public RawTermSerializer(SidConfiguration config) throws CryptoException {
-		this.cryptoDataLength = new Crypter(config).getCryptoValueLength();
+	public RawTermSerializer(int termLength) {
+		this.termLength = termLength;
 	}
 
 	@Override
@@ -25,14 +25,14 @@ public class RawTermSerializer extends Serializer<RawTerm> {
 
 	@Override
 	public RawTerm deserialize(DataInput in, int available) throws IOException {
-		byte[] value = new byte[this.cryptoDataLength];
+		byte[] value = new byte[this.termLength];
 		in.readFully(value);
 		return new RawTerm(value);
 	}
 	
 	@Override
 	public int fixedSize() {
-		return this.cryptoDataLength;
+		return this.termLength;
 	}
 
 }

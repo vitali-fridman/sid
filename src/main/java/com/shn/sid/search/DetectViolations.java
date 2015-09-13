@@ -67,10 +67,14 @@ public class DetectViolations {
 			for (Violation violation : violations) {
 				LOG.info("Found violation: " + violation.toString());
 			}
+			LOG.info("Detected " + violations.size() + " rows");
+		} else {
+			LOG.info("No violations found");
 		}
 		
 		end = System.nanoTime();
-		LOG.info("Detected " + violations.size() + " rows");
+		
+		
 		LOG.info("Detection took " + (end-start)/1000000d/(double)(iterations) + " ms");
 		
 		LogManager.shutdown();

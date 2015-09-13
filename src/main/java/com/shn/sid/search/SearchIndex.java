@@ -16,6 +16,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 
@@ -49,6 +50,8 @@ public class SearchIndex {
 	private IndexDescriptor descriptor;
 	private final String indexDirectory;
 	private int numShards;
+	private int fullTermLength;
+	private int retainedTermLength;
 	private DB[] commonTermsAndRowDBs;
 	private ArrayList<HTreeMap<TermAndRow, Integer>> commonTermsAndRowMaps;
 	private ArrayList<BloomFilter<TermAndRow>> commonTermsAndRowFilters;
@@ -93,6 +96,8 @@ public class SearchIndex {
 			ObjectMapper mapper = new ObjectMapper();
 			this.descriptor = mapper.readValue(descriptorFile, IndexDescriptor.class);
 			this.numShards = descriptor.getNumShards();
+			this.fullTermLength = descriptor.getFullTermLength();
+			this.retainedTermLength = descriptor.getRetainedTermLength();
 
 			filterIn =  null;
 
@@ -118,7 +123,7 @@ public class SearchIndex {
 						COMMON_TERMS_AND_ROW_DB_NAME + "." + i);
 				this.commonTermsAndRowDBs[i] = DBMaker.fileDB(commonTermsAndRowDBfile).readOnly().make();
 				this.commonTermsAndRowMaps.add(this.commonTermsAndRowDBs[i].hashMap(COMMON_TERMS_AND_ROW_MAP_NAME,
-						new TermAndRowSerializer(config),   
+						new TermAndRowSerializer(this.retainedTermLength),   
 						Serializer.INTEGER,
 						null));
 				
@@ -133,7 +138,7 @@ public class SearchIndex {
 						UNCOMMON_TERMS_DB_NAME + "." + i);
 				this.uncommonTermsDBs[i] = DBMaker.fileDB(unCommonTermsDBfile).readOnly().make();
 				this.unCommonTermsMaps.add(this.uncommonTermsDBs[i].hashMap(UNCOMMON_TERMS_MAP_NAME,
-						new RawTermSerializer(this.config),
+						new RawTermSerializer(this.retainedTermLength),
 						new CellRowAndColMaskListSerializer(),
 						null));
 
@@ -148,7 +153,7 @@ public class SearchIndex {
 						COMMON_TERMS_DB_NAME + "." + i);
 				this.commonTermsDBs[i] = DBMaker.fileDB(allCommonTermsDBfile).readOnly().make();
 				this.commonTermsMaps.add(this.commonTermsDBs[i].hashMap(COMMON_TERMS_MAP_NAME, 
-						new RawTermSerializer(this.config), Serializer.INTEGER, null));
+						new RawTermSerializer(this.fullTermLength), Serializer.INTEGER, null));
 				
 				String commonTermsFilterFile = this.indexDirectory + File.separator +
 						COMMON_TERMS_FILTER_FILE_NAME + "." + i;
@@ -185,14 +190,17 @@ public class SearchIndex {
 		if (!this.isOpen) {
 			throw new IllegalStateException("Index " + this.indexName + " is not open");
 		}
+		
+		RawTerm fullTerm = token.getTerm();
+		RawTerm retainedTerm = new RawTerm(Arrays.copyOf(fullTerm.getValue(), this.retainedTermLength));
 
 		FirstSearchLookupResult result = new FirstSearchLookupResult();
 		int shardNumber = calculateShard(token);
 		HTreeMap<RawTerm, Integer> allCommonTermsMap = this.commonTermsMaps.get(shardNumber);
 		BloomFilter<RawTerm> commonTermsFilter = this.commonTermsFilters.get(shardNumber);
 		Integer commonTermColMask= null;
-		if (commonTermsFilter.mightContain(token.getTerm())) {
-			commonTermColMask = allCommonTermsMap.get(token.getTerm());
+		if (commonTermsFilter.mightContain(fullTerm)) {
+			commonTermColMask = allCommonTermsMap.get(fullTerm);
 		}
 		result.token = token;
 		if (commonTermColMask != null) {
@@ -202,8 +210,8 @@ public class SearchIndex {
 			HTreeMap<RawTerm, ArrayList<CellRowAndColMask>> uncommonTermsMap = this.unCommonTermsMaps.get(shardNumber);
 			BloomFilter<RawTerm> uncommonTermsFilter = this.uncommonTermsFilters.get(shardNumber);
 			ArrayList <CellRowAndColMask> rowAndColMask = null;
-			if (uncommonTermsFilter.mightContain(token.getTerm())) {
-				rowAndColMask = uncommonTermsMap.get(token.getTerm());
+			if (uncommonTermsFilter.mightContain(retainedTerm)) {
+				rowAndColMask = uncommonTermsMap.get(retainedTerm);
 			}
 			if (rowAndColMask != null) {
 				result.presense = TokenPresense.UNCOMMON;
@@ -220,12 +228,15 @@ public class SearchIndex {
 			throw new IllegalStateException("Index " + this.indexName + " is not open");
 		}
 		
+		RawTerm fullTerm = token.getTerm();
+		RawTerm retainedTerm = new RawTerm(Arrays.copyOf(fullTerm.getValue(), this.retainedTermLength));
+		
 		Integer colMask = null;
-		TermAndRow termAndRow = new TermAndRow(token.getTerm(), row);
+		TermAndRow termAndRow = new TermAndRow(retainedTerm, row);
 		int shardNumber = termAndRow.getShard(this.numShards);
 		
 		if (this.commonTermsAndRowFilters.get(shardNumber).mightContain(termAndRow)) {
-			colMask = commonTermsAndRowMaps.get(shardNumber).get(new TermAndRow(token.getTerm(), row));
+			colMask = commonTermsAndRowMaps.get(shardNumber).get(termAndRow);
 		}
 		
 		if (colMask != null) {

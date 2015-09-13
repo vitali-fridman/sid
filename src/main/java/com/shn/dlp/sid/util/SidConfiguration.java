@@ -74,10 +74,16 @@ public class SidConfiguration {
 	private final static double INDEXER_BLOOM_FILTER_FPP_DEFAULT = 0.001;
 	private final static String INDEXER_BLOOM_FILTER_FPP_PROPERTY = "sid.indexer.bloomFilterFPP";
 	
+	private final static String INDEX_TERM_SIZE_TO_RETAIN_DEFAULT = "1000,6,10000000,5,50000000,4,150000000,3,500000000,2,1000000000,1";
+	private final static String INDEX_TERM_SIZE_TO_RETAIN_PROPERTY = "sid.index.termSizeToRetain";
+	private int[] termRowsCutoffs;
+	private int[] termsLength;
+	
 	
 	public SidConfiguration (String propertiesFileName) throws FileNotFoundException, IOException {
 		this.properties = new Properties();
 		this.properties.load(new FileInputStream(propertiesFileName));
+		parseTermSizeToRetain();
 	}
 
 	public SidConfiguration () throws IOException {
@@ -89,7 +95,40 @@ public class SidConfiguration {
 			throw new FileNotFoundException("Properties " + PROPERTIES_FILE + "are not present in resources.");
 		}
 		is.close();
+		parseTermSizeToRetain();
 	} 
+	
+	private void parseTermSizeToRetain() {
+		String specString = getStringProperty(INDEX_TERM_SIZE_TO_RETAIN_PROPERTY, INDEX_TERM_SIZE_TO_RETAIN_DEFAULT);
+		String[] spec = specString.split(",");
+		if (spec.length % 2 != 0) {
+			LOG.warn("Invalid format of sid.index.termSizeToRetain, use default");
+			this.termRowsCutoffs = new int[]{100,10000000,50000000,150000000,500000000,1000000000};
+			this.termsLength = new int[]{6,5,4,3,2,1};
+		}
+		int numRanges = spec.length / 2;
+		this.termRowsCutoffs = new int[numRanges];
+		this.termsLength = new int[numRanges];
+		try {
+			for(int i=0; i<numRanges; i++) {
+				this.termRowsCutoffs[i] = Integer.parseInt(spec[i*2]);
+				this.termsLength[i] = Integer.parseInt(spec[i*2+1]); 
+			}
+		} catch (NumberFormatException e) {
+			LOG.warn("Invalid format of sid.index.termSizeToRetain, use default");
+			this.termRowsCutoffs = new int[]{100,10000000,50000000,150000000,500000000,1000000000};
+			this.termsLength = new int[]{6,5,4,3,2,1};
+		}
+	}
+	
+	public int getTemSizeToRetain(int numRows) {
+		for (int i = 0; i< this.termRowsCutoffs.length; i++) {
+			if (numRows < this.termRowsCutoffs[i]) {
+				return this.termsLength[i];
+			}
+		}
+		return 0;
+	}
 
 	public String getDiskMountPoint() {
 		return getStringProperty(MOUNT_POINT_PROP, MOUNT_POINT_DEFAULT);

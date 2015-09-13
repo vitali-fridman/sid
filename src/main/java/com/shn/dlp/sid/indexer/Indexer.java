@@ -58,7 +58,8 @@ public class Indexer {
 	private static int headerLength;
 	private static int formatVersion;
 	private static String algorithm;
-	private static int termLength;	
+	private static int fullTermLength;
+	private static int retainedTermLength;
 	private static int numRows;
 	private static int numColumns;
 	private static int numShards;
@@ -104,7 +105,7 @@ public class Indexer {
 		pgc.setDaemon(true);
 		pgc.start();
 
-		numShards = calculateNumberOfShards(config, fileToIndex);
+		numShards = readCryptoFileHeader(config, fileToIndex);
 		
 		if (numShards < 1) {
 			LOG.error("Error Calculation number of shards");
@@ -120,7 +121,8 @@ public class Indexer {
 		boolean[] completed = new boolean[numShards];
 
 		for (int i = 0; i < numShards; i++) {
-			Callable<Boolean> worker = new IndexerWorker(config, fileToIndex, numShards, commonTermsAndRowMaps, i);
+			Callable<Boolean> worker = new IndexerWorker(config, fileToIndex, numRows, numShards, commonTermsAndRowMaps, 
+					fullTermLength, retainedTermLength, i);
 			Future<Boolean> result = executor.submit(worker);
 			results.add(result);
 		}
@@ -199,8 +201,8 @@ public class Indexer {
 
 	private static void writeDescriptorFile(String indexDirectory) 
 			throws JsonGenerationException, JsonMappingException, IOException {
-		IndexDescriptor descriptor = new IndexDescriptor(headerLength, formatVersion, algorithm, termLength,
-				numRows, numColumns, numShards);
+		IndexDescriptor descriptor = new IndexDescriptor(headerLength, formatVersion, algorithm, fullTermLength,
+				retainedTermLength,  numRows, numColumns, numShards);
 		ObjectMapper mapper = new ObjectMapper();
 		mapper.writeValue(new File(indexDirectory + File.separator + DESCRIPTOR_FILE_NAME), descriptor);
 	}
@@ -239,7 +241,7 @@ public class Indexer {
 			commonTermsAndRowMaps[i] =
 					commonTermsAndRowDBs[i].hashMapCreate(COMMON_TERMS_AND_ROW_MAP_NAME).
 					valueSerializer(Serializer.INTEGER).
-					keySerializer(new TermAndRowSerializer(config)).
+					keySerializer(new TermAndRowSerializer(retainedTermLength)).
 					counterEnable().					
 					make();
 		}
@@ -247,7 +249,7 @@ public class Indexer {
 	}
 
 
-	private static int calculateNumberOfShards(SidConfiguration config, String cryptoFileName) throws IOException {
+	private static int readCryptoFileHeader(SidConfiguration config, String cryptoFileName) throws IOException {
 		DataInputStream dis = null;
 		try {
 			dis = new DataInputStream(new BufferedInputStream(new FileInputStream(cryptoFileName)));
@@ -261,8 +263,9 @@ public class Indexer {
 			byte[] alg = new byte[config.getCryptoFileHeaderAlgoritmNameLength()];
 			dis.readFully(alg);
 			algorithm = new String(alg).trim();
-			termLength = dis.readByte(); // ignore
+			fullTermLength = dis.readByte(); // ignore
 			numRows = dis.readInt();
+			retainedTermLength = config.getTemSizeToRetain(numRows);
 			numColumns = dis.readByte();
 			if (numColumns < 1 || numColumns > 30) {
 				LOG.error("Number of columns is " + numColumns + " but it must be between 1 and 30");
