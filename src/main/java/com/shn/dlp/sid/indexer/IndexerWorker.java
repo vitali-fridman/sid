@@ -157,7 +157,8 @@ public class IndexerWorker implements Callable<Boolean> {
 			}
 			count++;
 		}
-
+		
+		
 		BufferedOutputStream out = new BufferedOutputStream(new FileOutputStream(filterFileName));
 		filter.writeTo(out);
 		out.close();
@@ -166,7 +167,7 @@ public class IndexerWorker implements Callable<Boolean> {
 	private void moveCommonTerms() throws InterruptedException {
 		int commonalityThreashold = this.config.getCommonalityThreashold();
 		int i=0;
-		for (Entry<RawTerm, ArrayList<CellRowAndColMask>> entry : this.unCommonTermsMap.entrySet()) {
+		for (Entry<RawTerm, ArrayList<CellRowAndColMask>> entry : this.unCommonTermsMapTemp.entrySet()) {
 
 			if (Thread.interrupted()) {
 				LOG.warn("Indexer Worker has been interrupted and will exit");
