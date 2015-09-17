@@ -56,7 +56,7 @@ public class DetectViolations {
 		List<Violation> violations = null;
 		start = System.nanoTime();
 		
-		int iterations = 1;
+		int iterations = 1000;
 		for (int j=0; j<iterations; j++) {
 				violations = detector.findViolations(tokensAsArray, dv.colThreshold, dv.cviolationsThreshold);
 		}
