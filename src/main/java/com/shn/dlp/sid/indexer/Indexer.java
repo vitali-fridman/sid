@@ -55,7 +55,6 @@ public class Indexer {
 
 	private static DB[] commonTermsAndRowDBs;
 	private static HTreeMap<TermAndRow, Integer>[] commonTermsAndRowMaps;
-	private static int headerLength;
 	private static int formatVersion;
 	private static String algorithm;
 	private static int fullTermLength;
@@ -201,7 +200,7 @@ public class Indexer {
 
 	private static void writeDescriptorFile(String indexDirectory) 
 			throws JsonGenerationException, JsonMappingException, IOException {
-		IndexDescriptor descriptor = new IndexDescriptor(headerLength, formatVersion, algorithm, fullTermLength,
+		IndexDescriptor descriptor = new IndexDescriptor(formatVersion, algorithm, fullTermLength,
 				retainedTermLength,  numRows, numColumns, numShards);
 		ObjectMapper mapper = new ObjectMapper();
 		mapper.writeValue(new File(indexDirectory + File.separator + DESCRIPTOR_FILE_NAME), descriptor);
@@ -253,20 +252,18 @@ public class Indexer {
 		DataInputStream dis = null;
 		try {
 			dis = new DataInputStream(new BufferedInputStream(new FileInputStream(cryptoFileName)));
-			headerLength = dis.readByte(); // ignore
-			formatVersion = dis.readByte();
+			CryptoFileHeader header = CryptoFileHeader.read(dis, config.getCryptoFileHeaderAlgoritmNameLength());
+			formatVersion = header.getFormatVersion();
 			if (formatVersion != config.getCryptoFileFormatVersion()) {
 				LOG.error("Wrong crypto file format version");
 				LogManager.shutdown();
 				return -1;
 			}
-			byte[] alg = new byte[config.getCryptoFileHeaderAlgoritmNameLength()];
-			dis.readFully(alg);
-			algorithm = new String(alg).trim();
-			fullTermLength = dis.readByte(); // ignore
-			numRows = dis.readInt();
+			algorithm = header.getAlrorithmName();
+			fullTermLength = header.getCryptoTermLength(); // ignore
+			numRows = header.getNumRows();
 			retainedTermLength = config.getTemSizeToRetain(numRows);
-			numColumns = dis.readByte();
+			numColumns = header.getNumColumns();
 			if (numColumns < 1 || numColumns > 30) {
 				LOG.error("Number of columns is " + numColumns + " but it must be between 1 and 30");
 				LogManager.shutdown();

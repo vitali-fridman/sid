@@ -61,8 +61,7 @@ public class SidConfiguration {
 	
 	private final static String CRYPTO_ALGORITHM_NAME_DEFAULT = "HmacSHA1";
 	private final static String CRYPTO_ALGORITHM_NAME_PROP = "sid.cryptoAlgorithm";
-	
-	private final static int CRYPTO_FILE_HEADER_LENGTH = 32;	
+		
 	private final static int CRYPTO_FILE_HEADER_ALGORITM_NAME_LENGTH = 21;
 	
 	private final static int TERM_COMMONALITY_THREASHOLD_DEFAULT = 100;
@@ -191,10 +190,6 @@ public class SidConfiguration {
 	
 	public String getCryptoAlgorithmName() {
 		return getStringProperty(CRYPTO_ALGORITHM_NAME_PROP, CRYPTO_ALGORITHM_NAME_DEFAULT);  
-	}
-	
-	public int getCryptoFileHeaderLength() {
-		return CRYPTO_FILE_HEADER_LENGTH;
 	}
 	
 	public int getCryptoFileHeaderAlgoritmNameLength() {

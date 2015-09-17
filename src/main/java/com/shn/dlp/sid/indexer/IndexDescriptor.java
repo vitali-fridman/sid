@@ -14,10 +14,9 @@ public class IndexDescriptor {
 		
 	}
 	
-	public IndexDescriptor(int headerLength, int formatVersion, String algorithm, 
+	public IndexDescriptor(int formatVersion, String algorithm, 
 			int fullTermLength, int retainedTermLength, int numRows, int numColumns, int numShards) {
 		super();
-		this.headerLength = headerLength;
 		this.formatVersion = formatVersion;
 		this.algorithm = algorithm;
 		this.fullTermLength = fullTermLength;
@@ -26,13 +25,7 @@ public class IndexDescriptor {
 		this.numColumns = numColumns;
 		this.numShards = numShards;	
 	}
-	
-	public int getHeaderLength() {
-		return headerLength;
-	}
-	public void setHeaderLength(int headerLength) {
-		this.headerLength = headerLength;
-	}
+
 	public int getFormatVersion() {
 		return formatVersion;
 	}

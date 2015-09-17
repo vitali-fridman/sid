@@ -276,7 +276,7 @@ public class IndexerWorker implements Callable<Boolean> {
 
 		DataInputStream dis = new DataInputStream(new BufferedInputStream(new FileInputStream(file), 10000000));
 		int initialCellListSize = config.getIndexerInitialCellListSize();
-		readHeader(dis);
+		CryptoFileHeader.skip(dis, this.config.getCryptoFileHeaderAlgoritmNameLength());
 
 		int i = 0;
 		int loggingCellCount = config.getIndexerLoggingCellCount();
@@ -321,9 +321,5 @@ public class IndexerWorker implements Callable<Boolean> {
 				return;
 			} 
 		}
-	}
-
-	private void readHeader(DataInputStream dis) throws IOException {
-		dis.skip(29);
 	}
 }

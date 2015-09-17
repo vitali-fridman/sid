@@ -19,6 +19,7 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.primitives.Ints;
 import com.shn.dlp.sid.security.CryptoException;
+import com.shn.dlp.sid.indexer.CryptoFileHeader;
 import com.shn.dlp.sid.security.Crypter;
 import com.shn.dlp.sid.util.SidConfiguration;
 
@@ -187,25 +188,13 @@ public class CensusTestDataFileGenerator {
 	}
 
 	private void writeHeader() throws IOException {
-		this.cryptoWriter.write(this.config.getCryptoFileHeaderLength());
-		this.cryptoWriter.write(this.config.getCryptoFileFormatVersion());
-		this.cryptoWriter.write(StringUtils.rightPad(config.getCryptoAlgorithmName(), 
-				this.config.getCryptoFileHeaderAlgoritmNameLength()).getBytes());
-		this.cryptoWriter.write(this.crypter.getCryptoValueLength());
-		this.cryptoWriter.write(intToBytes(this.numRows));
-		this.cryptoWriter.write(this.numColumns);
-
-//		if (this.clearWriter != null) {
-//			this.clearWriter.write("Format Version: " + this.config.getCryptoFileFormatVersion());
-//			this.clearWriter.newLine();
-//			this.clearWriter.write("Crypto algprithm: " + config.getCryptoAlgorithmName());
-//			this.clearWriter.write("Columns: " + this.numColumns);
-//			this.clearWriter.newLine();
-//			this.clearWriter.write("Rows: " + this.numRows);
-//			this.clearWriter.newLine();
-//			this.clearWriter.write("DATA:");
-//			this.clearWriter.newLine();
-//		}
+		CryptoFileHeader header = new CryptoFileHeader(this.config.getCryptoFileFormatVersion(),
+				this.config.getCryptoAlgorithmName(),
+				this.config.getCryptoFileHeaderAlgoritmNameLength(),
+				this.crypter.getCryptoValueLength(),
+				this.numRows,
+				this.numColumns);
+		header.write(this.cryptoWriter);
 	}
 
 	private void close() throws IOException {

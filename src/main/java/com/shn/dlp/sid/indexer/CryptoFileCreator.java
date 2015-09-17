@@ -100,14 +100,15 @@ public class CryptoFileCreator {
 		cryptoWriter.close();
 	}
 	
-	private static void writeHeader(OutputStream cryptoWriter, int rows, int cols, SidConfiguration config, Crypter crypter) throws IOException {
-			cryptoWriter.write(config.getCryptoFileHeaderLength());
-			cryptoWriter.write(config.getCryptoFileFormatVersion());
-			cryptoWriter.write(StringUtils.rightPad(config.getCryptoAlgorithmName(), 
-					config.getCryptoFileHeaderAlgoritmNameLength()).getBytes());
-			cryptoWriter.write(crypter.getCryptoValueLength());
-			cryptoWriter.write(intToBytes(rows));
-			cryptoWriter.write(cols);
+	private static void writeHeader(OutputStream cryptoWriter, int rows, int cols, 
+			SidConfiguration config, Crypter crypter) throws IOException {
+		
+		CryptoFileHeader header = new CryptoFileHeader(config.getCryptoFileFormatVersion(),
+				config.getCryptoAlgorithmName(),
+				config.getCryptoFileHeaderAlgoritmNameLength(),
+				crypter.getCryptoValueLength(),
+				rows, cols);
+		header.write(cryptoWriter);
 	}
 		
 
