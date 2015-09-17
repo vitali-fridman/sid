@@ -267,7 +267,7 @@ public class IndexerWorker implements Callable<Boolean> {
 		this.commonTermsMap =
 				this.commonTermsDB.hashMapCreate(COMMON_TERMS_MAP_NAME).
 				valueSerializer(Serializer.INTEGER).
-				keySerializer(new RawTermSerializer(this.retinedTermLegth)).
+				keySerializer(new RawTermSerializer(this.fullTermLength)).
 				counterEnable().					
 				make();		
 	}
