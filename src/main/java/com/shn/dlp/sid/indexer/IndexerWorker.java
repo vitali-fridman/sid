@@ -324,7 +324,6 @@ public class IndexerWorker implements Callable<Boolean> {
 	}
 
 	private void readHeader(DataInputStream dis) throws IOException {
-		int headerLength = dis.readByte(); // unused
-		dis.skip(headerLength-1);
+		dis.skip(29);
 	}
 }
