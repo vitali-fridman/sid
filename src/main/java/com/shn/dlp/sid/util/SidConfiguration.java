@@ -73,7 +73,7 @@ public class SidConfiguration {
 	private final static double INDEXER_BLOOM_FILTER_FPP_DEFAULT = 0.001;
 	private final static String INDEXER_BLOOM_FILTER_FPP_PROPERTY = "sid.indexer.bloomFilterFPP";
 	
-	private final static String INDEX_TERM_SIZE_TO_RETAIN_DEFAULT = "1000,6,10000000,5,50000000,4,150000000,3,500000000,2,1000000000,1";
+	private final static String INDEX_TERM_SIZE_TO_RETAIN_DEFAULT = "1000,20,10000000,20,50000000,20,150000000,20,500000000,20,1000000000,20";
 	private final static String INDEX_TERM_SIZE_TO_RETAIN_PROPERTY = "sid.index.termSizeToRetain";
 	private int[] termRowsCutoffs;
 	private int[] termsLength;

@@ -28,7 +28,7 @@ public class TestLexer {
 		Crypter crypter = new Crypter(this.config);
 		List<Token> rawTerms = new LinkedList<Token>();
 		for (String clearTerm : clearTerms) {
-			clearTerm = clearTerm.trim();
+			clearTerm = clearTerm.trim().toLowerCase();
 			rawTerms.add(new Token(clearTerm, new RawTerm(crypter.computeDigest(clearTerm))));
 		}
 		return rawTerms;

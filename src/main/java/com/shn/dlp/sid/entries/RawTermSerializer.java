@@ -6,10 +6,6 @@ import java.io.IOException;
 
 import org.mapdb.Serializer;
 
-import com.shn.dlp.sid.security.Crypter;
-import com.shn.dlp.sid.security.CryptoException;
-import com.shn.dlp.sid.util.SidConfiguration;
-
 public class RawTermSerializer extends Serializer<RawTerm> {
 
 	private final int termLength;
