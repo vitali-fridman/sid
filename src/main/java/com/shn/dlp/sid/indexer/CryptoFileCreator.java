@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.log4j.LogManager;
 import org.kohsuke.args4j.CmdLineException;
 import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
@@ -59,6 +60,7 @@ public class CryptoFileCreator {
 		
 		if (!Files.exists(Paths.get(fileToCrypto))) {
 			LOG.error("Data File does not exist");
+			LogManager.shutdown();
 			System.exit(-1);
 		}
 		
