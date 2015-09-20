@@ -87,7 +87,7 @@ public class CryptoFileCreator {
 		for(String line; (line = clearReader.readLine()) != null; ) {
 	        String[] tokens = line.split("[,;\t]");
 	        for (int col = 0; col < tokens.length; col++) {
-	        	byte[] cryptedToken = crypter.computeDigest(tokens[col]);
+	        	byte[] cryptedToken = crypter.computeDigest(tokens[col].trim().toLowerCase());
 	        	cryptoWriter.write(intToBytes(row));
 	        	cryptoWriter.write(col);
 	        	cryptoWriter.write(cryptedToken);
