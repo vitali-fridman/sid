@@ -100,6 +100,7 @@ public class CryptoFileCreator {
 		
 		clearReader.close();
 		cryptoWriter.close();
+		LOG.info("Crypto file " + cryptoFile + " created");
 	}
 	
 	private static void writeHeader(OutputStream cryptoWriter, int rows, int cols, 

@@ -120,6 +120,8 @@ public class IndexerWorker implements Callable<Boolean> {
 	}
 	
 	private void deleteTempDB() {
+		this.uncommonTermsDBtemp.commit();
+		this.uncommonTermsDBtemp.close();
 		File uncommonTermsDBfileTemp = new File(this.config.getIndexerTempDirectory() + "/" + 
 				UNCOMMON_TERMS_DB_NAME + "." + shardNumber + ".temp");
 		FileUtils.deleteQuietly(uncommonTermsDBfileTemp);
