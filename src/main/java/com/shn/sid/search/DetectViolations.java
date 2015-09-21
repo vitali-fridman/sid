@@ -28,6 +28,8 @@ public class DetectViolations {
 	private int colThreshold;
 	@Option(name="-v",usage="Violations Threashold", required=true)
 	private int cviolationsThreshold;
+	@Option(name="-p",usage="Properties File", required=false)
+	private String propertiesFile;
 	
 	private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 	
@@ -42,7 +44,12 @@ public class DetectViolations {
 			return;
 		}
 		
-		SidConfiguration config = new SidConfiguration();
+		SidConfiguration config;
+		if (dv.propertiesFile != null) {
+			config = new SidConfiguration(dv.propertiesFile);
+		} else {
+			config = new SidConfiguration();
+		}
 		TestLexer lexer = new TestLexer(config);
 		List<Token> tokens = lexer.scan(dv.fileName);
 		Token[] tokensAsArray = new Token[tokens.size()];
