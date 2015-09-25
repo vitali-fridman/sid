@@ -45,91 +45,64 @@ import static com.shn.dlp.sid.indexer.IndexComponents.COMMON_TERMS_AND_ROW_MAP_N
 import static com.shn.dlp.sid.indexer.IndexComponents.DESCRIPTOR_FILE_NAME;
 
 public class Indexer {
-
-	@Option(name="-f",usage="File Name to read", required=true)
-	private String fileName;
-	@Option(name="-p", usage="Properties File", required=false)
-	private String propertiesFile;
-
 	private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());  
 
-	private static DB[] commonTermsAndRowDBs;
-	private static HTreeMap<TermAndRow, Integer>[] commonTermsAndRowMaps;
-	private static int formatVersion;
-	private static String algorithm;
-	private static int fullTermLength;
-	private static int retainedTermLength;
-	private static int numRows;
-	private static int numColumns;
-	private static int numShards;
+	private final SidConfiguration config;
+	private final String fileToIndex;
+	private DB[] commonTermsAndRowDBs;
+	private HTreeMap<TermAndRow, Integer>[] commonTermsAndRowMaps;
+	private int formatVersion;
+	private String algorithm;
+	private int fullTermLength;
+	private int retainedTermLength;
+	private int numRows;
+	private int numColumns;
+	private int numShards;
 
 
-	public static void main(String[] args) throws IOException, CryptoException {
-		Indexer cfr = new Indexer();
-		CmdLineParser parser = new CmdLineParser(cfr);
-		try {
-			parser.parseArgument(args);
-		} catch (CmdLineException e) {
-			LOG.error(e.getMessage());
-			LOG.error(parser.printExample(OptionHandlerFilter.ALL));
-			return;
-		}
-
-		long start=System.nanoTime();
-
-		SidConfiguration config;
-		if (cfr.propertiesFile != null) {
-			config = new SidConfiguration(cfr.propertiesFile);
-		} else {
-			config = new SidConfiguration();
-		}
-
-		String fileToIndex = config.getDataFilesDrictory() + File.separator + cfr.fileName 
-				+ Crypter.CRYPRO_FILE_SUFFIX;
-		if (!Files.exists(Paths.get(fileToIndex))) {
-			LOG.error("Crypto File does not exist");
-			System.exit(-1);
-		}
-
-		if (!Files.exists(Paths.get(config.getIndexesDirectory()))) {
+	public  Indexer(SidConfiguration config, String fileToIndex) {
+		this.config = config;
+		this.fileToIndex = fileToIndex;
+	}
+		
+	public boolean index() {
+		
+		if (!Files.exists(Paths.get(this.config.getIndexesDirectory()))) {
 			LOG.error("Indexes directory does not exist");
-			System.exit(-1);
+			return false;
 		}
 
-		String tempDirectory = config.getIndexerTempDirectory();
+		String tempDirectory = this.config.getIndexerTempDirectory();
 		FileUtils.deleteQuietly(new File(tempDirectory));
 		FileUtils.forceMkdir(new File(tempDirectory));
 
-		PeriodicGarbageCollector pgc = new PeriodicGarbageCollector(config.getIndexerGcPeriod());
+		PeriodicGarbageCollector pgc = new PeriodicGarbageCollector(this.config.getIndexerGcPeriod());
 		pgc.setDaemon(true);
 		pgc.start();
 
-		numShards = readCryptoFileHeader(config, fileToIndex);
-		
-		if (numShards < 1) {
-			LOG.error("Error Calculation number of shards");
-			System.exit(-1);
-			LogManager.shutdown();
+		if (!readCryptoFileHeader()) {
+			return false;
 		}
 		
-		createCommonTermsDBandMaps(config);
+		createCommonTermsDBandMaps();
 
 		
 		ExecutorService executor= Executors.newFixedThreadPool(config.getIndexerNumThreads());
 		List<Future<Boolean>> results = new ArrayList<>();
 		boolean[] completed = new boolean[numShards];
 
-		for (int i = 0; i < numShards; i++) {
-			Callable<Boolean> worker = new IndexerWorker(config, fileToIndex, numRows, numShards, commonTermsAndRowMaps, 
-					fullTermLength, retainedTermLength, i);
+		for (int i = 0; i < this.numShards; i++) {
+			Callable<Boolean> worker = new IndexerWorker(this.config, this.fileToIndex, 
+					this.numRows, this.numShards, this.commonTermsAndRowMaps, 
+					this.fullTermLength, this.retainedTermLength, i);
 			Future<Boolean> result = executor.submit(worker);
 			results.add(result);
 		}
 
 		boolean fail = false;
-		int remaning  = numShards;
+		int remaning  = this.numShards;
 		while(!fail && remaning > 0) {
-			for (int i=0; i<numShards; i++) {
+			for (int i=0; i<this.numShards; i++) {
 				Future<Boolean> future = results.get(i);
 				try {
 					if (!completed[i] && future. isDone()) {
@@ -163,14 +136,12 @@ public class Indexer {
 			executor.awaitTermination(Integer.MAX_VALUE, TimeUnit.DAYS);
 		} catch (InterruptedException e) {
 			LOG.error("Indexer was interrupted before normal completion, exiting", e);
-			LogManager.shutdown();
-			System.exit(-1);
+			return false;
 		}
 		
 		if (fail) {
 			LOG.error("One of the indexer workers failed, Exiting");
-			LogManager.shutdown();
-			System.exit(-1);
+			return false;
 		}
 
 		commitCommonTermsAndRowDBs();
@@ -198,49 +169,49 @@ public class Indexer {
 		LogManager.shutdown();
 	}
 
-	private static void writeDescriptorFile(String indexDirectory) 
+	private void writeDescriptorFile(String indexDirectory) 
 			throws JsonGenerationException, JsonMappingException, IOException {
-		IndexDescriptor descriptor = new IndexDescriptor(formatVersion, algorithm, fullTermLength,
-				retainedTermLength,  numRows, numColumns, numShards);
+		IndexDescriptor descriptor = new IndexDescriptor(this.formatVersion, this.algorithm, this.fullTermLength,
+				this.retainedTermLength,  this.numRows, this.numColumns, this.numShards);
 		ObjectMapper mapper = new ObjectMapper();
 		mapper.writeValue(new File(indexDirectory + File.separator + DESCRIPTOR_FILE_NAME), descriptor);
 	}
 
-	private static void commitCommonTermsAndRowDBs() {
-		for (int i=0; i< numShards; i++) {
-			commonTermsAndRowDBs[i].commit();
+	private  void commitCommonTermsAndRowDBs() {
+		for (int i=0; i< this.numShards; i++) {
+			this.commonTermsAndRowDBs[i].commit();
 		}
 	}
 
-	private static void closeCommonTermsAndRowDBs() {
-		for (int i=0; i< numShards; i++) {
-			commonTermsAndRowDBs[i].close();
+	private void closeCommonTermsAndRowDBs() {
+		for (int i=0; i< this.numShards; i++) {
+			this.commonTermsAndRowDBs[i].close();
 		}
 	}
 	
-	private static void createCommonTermsDBandMaps(SidConfiguration config) throws CryptoException {
+	private void createCommonTermsDBandMaps() throws CryptoException {
 
-		commonTermsAndRowDBs = new DB[numShards];
-		commonTermsAndRowMaps = new HTreeMap[numShards];
+		this.commonTermsAndRowDBs = new DB[numShards];
+		this.commonTermsAndRowMaps = new HTreeMap[numShards];
 		
-		for (int i=0; i<numShards; i++) {
-			File commonTermsDBfile = new File(config.getIndexerTempDirectory() + "/" + COMMON_TERMS_AND_ROW_DB_NAME + "." + i);
-			commonTermsAndRowDBs[i] = DBMaker.fileDB(commonTermsDBfile).
+		for (int i=0; i<this.numShards; i++) {
+			File commonTermsDBfile = new File(this.config.getIndexerTempDirectory() + "/" + COMMON_TERMS_AND_ROW_DB_NAME + "." + i);
+			this.commonTermsAndRowDBs[i] = DBMaker.fileDB(commonTermsDBfile).
 					transactionDisable().
 					closeOnJvmShutdown().  
 					fileMmapEnable().
 					asyncWriteEnable().
-					asyncWriteFlushDelay(config.getIndexerAsyncWriteFlushDelay()).
-					asyncWriteQueueSize(config.getIndexerAsyncWriteQueueSize()).
-					allocateStartSize(config.getIndexerMapDbSizeIncrement()).
-					allocateIncrement(config.getIndexerMapDbSizeIncrement()).
+					asyncWriteFlushDelay(this.config.getIndexerAsyncWriteFlushDelay()).
+					asyncWriteQueueSize(this.config.getIndexerAsyncWriteQueueSize()).
+					allocateStartSize(this.config.getIndexerMapDbSizeIncrement()).
+					allocateIncrement(this.config.getIndexerMapDbSizeIncrement()).
 					metricsEnable().
 					make();
 		
-			commonTermsAndRowMaps[i] =
-					commonTermsAndRowDBs[i].hashMapCreate(COMMON_TERMS_AND_ROW_MAP_NAME).
+			this.commonTermsAndRowMaps[i] =
+					this.commonTermsAndRowDBs[i].hashMapCreate(COMMON_TERMS_AND_ROW_MAP_NAME).
 					valueSerializer(Serializer.INTEGER).
-					keySerializer(new TermAndRowSerializer(retainedTermLength)).
+					keySerializer(new TermAndRowSerializer(this.retainedTermLength)).
 					counterEnable().					
 					make();
 		}
@@ -248,48 +219,43 @@ public class Indexer {
 	}
 
 
-	private static int readCryptoFileHeader(SidConfiguration config, String cryptoFileName) throws IOException {
+	private boolean readCryptoFileHeader() throws IOException {
 		DataInputStream dis = null;
 		try {
-			dis = new DataInputStream(new BufferedInputStream(new FileInputStream(cryptoFileName)));
+			dis = new DataInputStream(new BufferedInputStream(new FileInputStream(this.fileToIndex)));
 			CryptoFileHeader header = CryptoFileHeader.read(dis, config.getCryptoFileHeaderAlgoritmNameLength());
-			formatVersion = header.getFormatVersion();
-			if (formatVersion != config.getCryptoFileFormatVersion()) {
+			this.formatVersion = header.getFormatVersion();
+			if (this.formatVersion != this.config.getCryptoFileFormatVersion()) {
 				LOG.error("Wrong crypto file format version");
-				LogManager.shutdown();
-				return -1;
+				return false;
 			}
-			algorithm = header.getAlrorithmName();
-			fullTermLength = header.getCryptoTermLength(); // ignore
-			numRows = header.getNumRows();
-			retainedTermLength = config.getTemSizeToRetain(numRows);
-			numColumns = header.getNumColumns();
-			if (numColumns < 1 || numColumns > 30) {
-				LOG.error("Number of columns is " + numColumns + " but it must be between 1 and 30");
-				LogManager.shutdown();
-				return -1;
+			this.algorithm = header.getAlrorithmName();
+			this.fullTermLength = header.getCryptoTermLength();
+			this.numRows = header.getNumRows();
+			this.retainedTermLength = this.config.getTemSizeToRetain(this.numRows);
+			this.numColumns = header.getNumColumns();
+			if (this.numColumns < 1 || this.numColumns > 30) {
+				LOG.error("Number of columns is " + this.numColumns + " but it must be between 1 and 30");
+				return false;
 			}
-			long numbCells = (long)numColumns * (long)numRows;
-			if ( numbCells > 2000000000) {
-				LOG.error("Number of cells is " + numbCells + " but maximum allowed is 2 Billion");
-				return -1;
+			long numCells = (long)numColumns * (long)numRows;
+			if ( numCells > 2000000000) {
+				LOG.error("Number of cells is " + numCells + " but maximum allowed is 2 Billion");
+				return false;
 			}
-			int numCells = numColumns*numRows;
-			int numShards = (int)Math.ceil(numCells / (double) config.getIndexerOptimalCellsPerShard());
-			if (config.getIndexerNumThreads() > numShards) {
-				return config.getIndexerNumThreads();
-			} else {
-				return numShards;
+			int numCellsInt = this.numColumns*this.numRows;
+			this.numShards = (int)Math.ceil(numCellsInt / (double) this.config.getIndexerOptimalCellsPerShard());
+			if (this.config.getIndexerNumThreads() > this.numShards) {
+				this.numShards = this.config.getIndexerNumThreads();
 			}
+			return true;
 
 		} catch (FileNotFoundException e) {
-			LOG.error("Crypto File: " + cryptoFileName + " not found");
-			LogManager.shutdown();
-			return -1;
+			LOG.error("Crypto File: " + this.fileToIndex + " not found");
+			return false;
 		} catch (IOException e) {
-			LOG.error("Error reading header of Crypto File: " + cryptoFileName + e.getMessage());
-			LogManager.shutdown();
-			return -1;
+			LOG.error("Error reading header of Crypto File: " + this.fileToIndex + e.getMessage());
+			return false;
 		} finally {
 			if (dis != null ) dis.close();
 		}
