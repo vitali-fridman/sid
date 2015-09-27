@@ -48,6 +48,7 @@ public class Indexer {
 	private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());  
 
 	private final SidConfiguration config;
+	private final String indexName;
 	private final String fileToIndex;
 	private DB[] commonTermsAndRowDBs;
 	private HTreeMap<TermAndRow, Integer>[] commonTermsAndRowMaps;
@@ -60,12 +61,13 @@ public class Indexer {
 	private int numShards;
 
 
-	public  Indexer(SidConfiguration config, String fileToIndex) {
+	public  Indexer(SidConfiguration config, String indexName, String fileToIndex) {
 		this.config = config;
+		this.indexName = indexName;
 		this.fileToIndex = fileToIndex;
 	}
 		
-	public boolean index() {
+	public boolean index() throws IOException, CryptoException {
 		
 		if (!Files.exists(Paths.get(this.config.getIndexesDirectory()))) {
 			LOG.error("Indexes directory does not exist");
@@ -153,20 +155,11 @@ public class Indexer {
 		
 		closeCommonTermsAndRowDBs();
 		
-		String indexDirectory = config.getIndexesDirectory() + File.separator + cfr.fileName;
+		String indexDirectory = this.config.getIndexesDirectory() + File.separator + this.indexName;
 		FileUtils.deleteQuietly(new File(indexDirectory));
 		FileUtils.moveDirectory(new File(tempDirectory), new File(indexDirectory));
 		
-
-
-		long end = System.nanoTime();
-		if (!fail) {
-			LOG.info("INdexing of  " + cfr.fileName + " took " + (end - start)/1000000000d + " sec");
-		} else {
-			LOG.info("Indexig of  " + cfr.fileName + " failed after " + (end - start)/1000000000d + " sec");
-		}
-		
-		LogManager.shutdown();
+		return true;
 	}
 
 	private void writeDescriptorFile(String indexDirectory) 

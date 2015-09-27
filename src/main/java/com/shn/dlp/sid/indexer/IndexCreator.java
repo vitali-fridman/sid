@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.shn.dlp.sid.security.Crypter;
+import com.shn.dlp.sid.security.CryptoException;
 import com.shn.dlp.sid.util.SidConfiguration;
 
 public class IndexCreator {
@@ -26,7 +27,7 @@ public class IndexCreator {
 
 	private static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass()); 
 	
-	public static void main(String[] args) throws FileNotFoundException, IOException {
+	public static void main(String[] args) throws FileNotFoundException, IOException, CryptoException {
 		
 		IndexCreator ic = new IndexCreator();
 		CmdLineParser parser = new CmdLineParser(ic);
@@ -59,13 +60,13 @@ public class IndexCreator {
 			return;
 		}
 		
-		Indexer indexer = new Indexer(config, fileToIndex);
+		Indexer indexer = new Indexer(config, ic.fileName, fileToIndex);
 		
 		boolean indexingResult = indexer.index();
 		
 		long end = System.nanoTime();
 		if (indexingResult) {
-			LOG.info("INdexing of  " + ic.fileName + " took " + (end - start)/1000000000d + " sec");
+			LOG.info("Indexing of  " + ic.fileName + " took " + (end - start)/1000000000d + " sec");
 		} else {
 			LOG.info("Indexig of  " + ic.fileName + " failed after " + (end - start)/1000000000d + " sec");
 		}

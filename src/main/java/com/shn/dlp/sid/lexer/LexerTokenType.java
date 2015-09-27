@@ -1,0 +1,20 @@
+package com.shn.dlp.sid.lexer;
+
+public enum LexerTokenType {
+	WORD,
+	PHONE,
+	EMAIL,
+	TAXID,
+	PAYMENT_CARD,
+	DATE,
+	NUMBER,
+	PERCENT,
+	IP_ADDRESS,
+	POSTAL_CODE,
+	URL,
+	PUNCTUATION,
+	SEPARATOR,
+	DECIMAL_NUMBER,
+	INTEGER_NUMBER,
+	CUSTOM
+}
